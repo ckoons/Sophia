@@ -1,6 +1,6 @@
 # Sophia
 
-<img src="images/icon.jpg" alt="Sophia Nebula Icon" width="200"/>
+<img src="images/icon.jpg" alt="Sophia Nebula Icon" width="800"/>
 
 Machine learning components for the Tekton project ecosystem.
 
