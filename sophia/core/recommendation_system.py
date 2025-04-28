@@ -19,6 +19,7 @@ from enum import Enum
 from .metrics_engine import get_metrics_engine
 from .analysis_engine import get_analysis_engine
 from .experiment_framework import get_experiment_framework
+from .llm_adapter import get_llm_adapter
 
 logger = logging.getLogger("sophia.recommendation_system")
 
@@ -521,7 +522,8 @@ class RecommendationSystem:
     async def generate_recommendations_from_analysis(
         self,
         component_id: str,
-        time_window: str = "7d"
+        time_window: str = "7d",
+        use_llm: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Generate recommendations based on analysis of a component's metrics.
@@ -529,6 +531,7 @@ class RecommendationSystem:
         Args:
             component_id: ID of the component to analyze
             time_window: Time window for analysis
+            use_llm: Whether to use LLM for enhanced recommendations
             
         Returns:
             List of generated recommendations
@@ -547,8 +550,93 @@ class RecommendationSystem:
         if not analysis or "metric_analyses" not in analysis:
             logger.warning(f"No analysis data available for component {component_id}")
             return []
-            
-        # Generate recommendations
+        
+        # Generate recommendations using LLM if enabled
+        if use_llm:
+            try:
+                logger.info(f"Generating LLM-based recommendations for component {component_id}")
+                
+                # Get LLM adapter
+                llm_adapter = await get_llm_adapter()
+                
+                # Generate LLM-enhanced analysis
+                llm_analysis = await llm_adapter.analyze_metrics(
+                    metrics_data=analysis,
+                    component_id=component_id
+                )
+                
+                # Generate recommendations based on LLM analysis
+                llm_recommendations = await llm_adapter.generate_recommendations(
+                    analysis_results=llm_analysis,
+                    target_component=component_id,
+                    count=5  # Request 5 recommendations
+                )
+                
+                # Create recommendations from LLM output
+                created_recommendations = []
+                
+                for rec_data in llm_recommendations:
+                    try:
+                        # Map LLM recommendation fields to our schema
+                        title = rec_data.get("title", "LLM Generated Recommendation")
+                        description = rec_data.get("description", "No description provided")
+                        
+                        # Map impact to estimated_impact (0.0-1.0 scale)
+                        impact_str = rec_data.get("impact", "medium").lower()
+                        estimated_impact = {
+                            "high": 0.8,
+                            "medium": 0.5,
+                            "low": 0.3
+                        }.get(impact_str, 0.5)
+                        
+                        # Map effort to effort_estimate (enum value)
+                        effort_str = rec_data.get("effort", "medium").lower()
+                        effort_estimate = {
+                            "high": RecommendationImpact.HIGH,
+                            "medium": RecommendationImpact.MEDIUM,
+                            "low": RecommendationImpact.LOW
+                        }.get(effort_str, RecommendationImpact.MEDIUM)
+                        
+                        # Extract implementation steps
+                        implementation_steps = rec_data.get("implementation_steps", [])
+                        if isinstance(implementation_steps, list):
+                            implementation_plan = "\n".join([f"{i+1}. {step}" for i, step in enumerate(implementation_steps)])
+                        else:
+                            implementation_plan = rec_data.get("implementation_steps", "No implementation plan provided")
+                        
+                        # Create the recommendation
+                        recommendation = await self.create_recommendation(
+                            title=title,
+                            description=description,
+                            component_ids=[component_id],
+                            impact_areas=rec_data.get("impact_areas", ["performance"]),
+                            estimated_impact=estimated_impact,
+                            effort_estimate=effort_estimate,
+                            implementation_plan=implementation_plan,
+                            supporting_metrics=rec_data.get("supporting_metrics", []),
+                            source=RecommendationSource.ANALYSIS,
+                            priority=RecommendationPriority.MEDIUM,
+                            tags=["llm-generated", "analysis-generated", "auto-generated"]
+                        )
+                        
+                        created_recommendations.append(recommendation)
+                        
+                    except Exception as e:
+                        logger.error(f"Error creating LLM recommendation: {e}")
+                
+                # If we successfully created LLM recommendations, return them
+                if created_recommendations:
+                    logger.info(f"Generated {len(created_recommendations)} LLM-based recommendations for {component_id}")
+                    return created_recommendations
+                    
+                # Otherwise, fall back to rule-based recommendations
+                logger.warning(f"No valid LLM recommendations generated, falling back to rule-based approach")
+                
+            except Exception as e:
+                logger.error(f"Error generating LLM recommendations for {component_id}: {e}")
+                logger.info("Falling back to rule-based recommendation generation")
+                
+        # Traditional rule-based recommendation generation (fallback)
         recommendations = []
         
         # Check for performance issues
@@ -591,7 +679,7 @@ class RecommendationSystem:
                     supporting_metrics=rec_data.get("supporting_metrics", []),
                     source=RecommendationSource.ANALYSIS,
                     priority=rec_data["priority"],
-                    tags=["analysis-generated", "auto-generated"]
+                    tags=["analysis-generated", "auto-generated", "rule-based"]
                 )
                 
                 created_recommendations.append(recommendation)
@@ -603,13 +691,15 @@ class RecommendationSystem:
         
     async def generate_recommendation_from_experiment(
         self,
-        experiment_id: str
+        experiment_id: str,
+        use_llm: bool = True
     ) -> Optional[Dict[str, Any]]:
         """
         Generate a recommendation based on experiment results.
         
         Args:
             experiment_id: ID of the experiment
+            use_llm: Whether to use LLM for enhanced recommendation generation
             
         Returns:
             Generated recommendation or None if unsuccessful
@@ -642,7 +732,108 @@ class RecommendationSystem:
             logger.info(f"Experiment {experiment_id} does not recommend implementation")
             return None
             
-        # Generate recommendation
+        # Try LLM-enhanced recommendation generation if enabled
+        if use_llm:
+            try:
+                logger.info(f"Generating LLM-enhanced recommendation for experiment {experiment_id}")
+                
+                # Get LLM adapter
+                llm_adapter = await get_llm_adapter()
+                
+                # Create hypothesis from experiment details
+                hypothesis = f"Implementing the changes tested in experiment '{report['name']}' will improve {', '.join(report['metrics'])}"
+                
+                # Generate a well-designed experiment with LLM
+                experiment_design = await llm_adapter.design_experiment(
+                    hypothesis=hypothesis,
+                    available_components=report["components"],
+                    metrics_summary={"metrics": report["metrics"], "conclusion": report["conclusion"]}
+                )
+                
+                # Generate a recommendation based on the experiment
+                title = f"Implement changes from experiment: {report['name']}"
+                
+                # Create implementation plan from the experiment design
+                implementation_steps = experiment_design.get("implementation_steps", [])
+                if not implementation_steps:
+                    implementation_steps = experiment_design.get("methodology", [])
+                    
+                # Format the implementation plan
+                if isinstance(implementation_steps, list):
+                    implementation_plan = "\n".join([f"{i+1}. {step}" for i, step in enumerate(implementation_steps)])
+                else:
+                    implementation_plan = str(implementation_steps)
+                    
+                # If we don't have a good implementation plan from LLM, use default
+                if not implementation_plan or implementation_plan == "[]":
+                    implementation_plan = (
+                        f"1. Implement the test configuration from experiment {experiment_id}:\n"
+                        f"   - {json.dumps(report['test_config'], indent=2)}\n\n"
+                        f"2. Apply changes to the following components: {', '.join(report['components'])}\n\n"
+                        f"3. Monitor the following metrics to verify improvements: {', '.join(report['metrics'])}\n\n"
+                        f"4. Compare performance before and after implementation to verify expected improvements"
+                    )
+                    
+                # Enhance the description with LLM
+                llm_explanation = await llm_adapter.explain_analysis(
+                    analysis_data={
+                        "experiment": report["name"],
+                        "conclusion": report["conclusion"],
+                        "metrics": report["metrics"],
+                        "components": report["components"]
+                    },
+                    audience="technical"
+                )
+                
+                description = llm_explanation if llm_explanation else (
+                    f"Based on the results of experiment '{report['name']}', "
+                    f"we recommend implementing the tested changes. "
+                    f"\n\nExperiment conclusion: {report['conclusion']}"
+                )
+                
+                # Create acceptance criteria
+                acceptance_criteria = []
+                success_criteria = experiment_design.get("success_criteria", [])
+                
+                if success_criteria and isinstance(success_criteria, list):
+                    acceptance_criteria = success_criteria
+                else:
+                    # Default acceptance criteria
+                    for metric_id in report["metrics"]:
+                        acceptance_criteria.append(
+                            f"Improvement in {metric_id} matching or exceeding experiment results"
+                        )
+                
+                # Create recommendation
+                recommendation = await self.create_recommendation(
+                    title=title,
+                    description=description,
+                    component_ids=report["components"],
+                    impact_areas=experiment_design.get("impact_areas", ["performance"]),
+                    estimated_impact=0.8,  # High impact since it's validated by experiment
+                    effort_estimate=RecommendationImpact.MEDIUM,
+                    implementation_plan=implementation_plan,
+                    supporting_metrics=report["metrics"],
+                    experiments=[experiment_id],
+                    source=RecommendationSource.EXPERIMENT,
+                    priority=RecommendationPriority.HIGH,
+                    tags=["experiment-validated", "llm-enhanced", "auto-generated"]
+                )
+                
+                # Add acceptance criteria
+                for criteria in acceptance_criteria:
+                    await self.add_acceptance_criteria(
+                        recommendation_id=recommendation["id"],
+                        criteria=criteria
+                    )
+                    
+                return recommendation
+                
+            except Exception as e:
+                logger.error(f"Error generating LLM recommendation from experiment: {e}")
+                logger.info("Falling back to rule-based recommendation generation")
+        
+        # Generate recommendation using rule-based approach (fallback)
         try:
             # Create title
             title = f"Implement changes from experiment: {report['name']}"
@@ -683,7 +874,7 @@ class RecommendationSystem:
                 experiments=[experiment_id],
                 source=RecommendationSource.EXPERIMENT,
                 priority=RecommendationPriority.HIGH,
-                tags=["experiment-validated", "auto-generated"]
+                tags=["experiment-validated", "rule-based", "auto-generated"]
             )
             
             # Add acceptance criteria

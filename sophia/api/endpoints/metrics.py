@@ -5,10 +5,11 @@ This module defines the API endpoints for metrics collection and analysis in Sop
 """
 
 from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
+from fastapi import APIRouter, HTTPException, Depends, Query, Path, Body
 from datetime import datetime
 
 from sophia.core.metrics_engine import get_metrics_engine
+from sophia.core.llm_adapter import get_llm_adapter
 from sophia.models.metrics import (
     MetricSubmission,
     MetricQuery,
@@ -23,6 +24,32 @@ router = APIRouter()
 # ------------------------
 # Metrics API Routes
 # ------------------------
+
+@router.post("/explain", response_model=Dict[str, Any])
+async def explain_metrics(
+    metrics_data: Dict[str, Any] = Body(..., description="Metrics data to explain"),
+    audience: str = Query("technical", description="Target audience: technical, executive, or general"),
+    llm_adapter = Depends(get_llm_adapter)
+):
+    """
+    Generate natural language explanation of metrics data.
+    Translates technical metrics into clear, accessible explanations.
+    """
+    try:
+        explanation = await llm_adapter.explain_analysis(
+            analysis_data=metrics_data,
+            audience=audience
+        )
+        return {
+            "explanation": explanation,
+            "metrics": metrics_data,
+            "audience": audience
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to explain metrics: {str(e)}"
+        )
 
 @router.post("/", response_model=MetricResponse)
 async def submit_metric(

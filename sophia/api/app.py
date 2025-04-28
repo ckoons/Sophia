@@ -32,12 +32,21 @@ from sophia.models.intelligence import IntelligenceMeasurementCreate, Intelligen
 from sophia.models.component import ComponentRegister, ComponentUpdate, ComponentQuery, ComponentResponse
 from sophia.models.research import ResearchProjectCreate, ResearchProjectUpdate, ResearchProjectQuery, ResearchProjectResponse
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger("sophia.api")
+# Import Sophia utilities
+try:
+    from sophia.utils.tekton_utils import setup_logging, get_logger, get_config
+    from sophia.utils.llm_integration import get_llm_integration
+    
+    # Setup logging with Tekton shared utilities
+    setup_logging("sophia")
+    logger = get_logger("sophia.api")
+except ImportError:
+    # Fallback to standard logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger("sophia.api")
 
 # Create FastAPI app
 app = FastAPI(
@@ -267,6 +276,25 @@ async def startup_event():
         ml_engine = await get_ml_engine()
         await ml_engine.start()
         
+        # Initialize LLM integration if available
+        try:
+            llm_integration = await get_llm_integration()
+            await llm_integration.initialize()
+            logger.info("LLM Integration initialized successfully")
+        except Exception as llm_error:
+            logger.warning(f"Failed to initialize LLM Integration: {llm_error}")
+        
+        # Register with Hermes if available
+        try:
+            from sophia.utils.tekton_utils import register_with_hermes
+            success = await register_with_hermes()
+            if success:
+                logger.info("Registered with Hermes successfully")
+            else:
+                logger.warning("Failed to register with Hermes")
+        except Exception as hermes_error:
+            logger.warning(f"Failed to register with Hermes: {hermes_error}")
+        
         logger.info("Sophia API server started successfully")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
@@ -294,6 +322,21 @@ async def shutdown_event():
         
         ml_engine = await get_ml_engine()
         await ml_engine.stop()
+        
+        # Shutdown LLM integration if available
+        try:
+            llm_integration = await get_llm_integration()
+            await llm_integration.shutdown()
+            logger.info("LLM Integration shut down successfully")
+        except Exception as llm_error:
+            logger.warning(f"Error shutting down LLM Integration: {llm_error}")
+        
+        # Close any active WebSocket connections
+        for connection in active_connections:
+            try:
+                await connection.close()
+            except Exception:
+                pass
         
         logger.info("Sophia API server shutdown complete")
     except Exception as e:

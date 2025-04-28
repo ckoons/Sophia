@@ -5,10 +5,11 @@ This module defines the API endpoints for managing experiments in Sophia.
 """
 
 from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
+from fastapi import APIRouter, HTTPException, Depends, Query, Path, Body
 from datetime import datetime
 
 from sophia.core.experiment_framework import get_experiment_framework
+from sophia.core.llm_adapter import get_llm_adapter
 from sophia.models.experiment import (
     ExperimentCreate,
     ExperimentUpdate,
@@ -25,6 +26,30 @@ router = APIRouter()
 # ------------------------
 # Experiments API Routes
 # ------------------------
+
+@router.post("/llm/design", response_model=Dict[str, Any])
+async def design_experiment_with_llm(
+    hypothesis: str = Body(..., description="The hypothesis to test in the experiment"),
+    available_components: Optional[List[str]] = Body(None, description="List of components available for the experiment"),
+    metrics_summary: Optional[Dict[str, Any]] = Body(None, description="Summary of recent metrics relevant to the experiment"),
+    llm_adapter = Depends(get_llm_adapter)
+):
+    """
+    Design an experiment using LLM to test a specified hypothesis.
+    Generates detailed experiment methodology, variables, and success criteria.
+    """
+    try:
+        experiment_design = await llm_adapter.design_experiment(
+            hypothesis=hypothesis,
+            available_components=available_components,
+            metrics_summary=metrics_summary
+        )
+        return experiment_design
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to design experiment with LLM: {str(e)}"
+        )
 
 @router.post("/", response_model=ExperimentResponse)
 async def create_experiment(

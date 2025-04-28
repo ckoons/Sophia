@@ -12,7 +12,17 @@ from datetime import datetime
 
 import httpx
 
-logger = logging.getLogger("sophia.client")
+# Import shared utilities if available
+try:
+    from sophia.utils.tekton_utils import get_config, get_logger, create_http_client
+    logger = get_logger("sophia.client")
+except ImportError:
+    # Fallback to standard logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger("sophia.client")
 
 class SophiaClient:
     """
@@ -23,19 +33,41 @@ class SophiaClient:
     intelligence measurement, and component analysis.
     """
     
-    def __init__(self, base_url: str = "http://localhost:8006"):
+    def __init__(self, base_url: Optional[str] = None):
         """
         Initialize the Sophia client.
         
         Args:
-            base_url: Base URL for the Sophia API
+            base_url: Base URL for the Sophia API (defaults to SOPHIA_API_URL env variable or http://localhost:8006)
         """
-        self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=base_url, timeout=30.0)
+        # Use shared utilities to get configuration if available
+        try:
+            self.base_url = base_url or get_config("SOPHIA_API_URL", "http://localhost:8006")
+            # Try to use tekton_http shared utility to create client
+            self.client = create_http_client(
+                base_url=self.base_url,
+                timeout=30.0,
+                headers={"Content-Type": "application/json"}
+            )
+            # If client creation failed, use httpx directly
+            if self.client is None:
+                self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0)
+                logger.info(f"Using httpx client with base URL: {self.base_url}")
+            else:
+                logger.info(f"Using tekton_http client with base URL: {self.base_url}")
+        except ImportError:
+            # Fallback to direct httpx usage
+            self.base_url = base_url or "http://localhost:8006"
+            self.client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0)
+            logger.info(f"Using httpx client with base URL: {self.base_url}")
         
     async def close(self):
         """Close the client session."""
-        await self.client.aclose()
+        if hasattr(self.client, 'aclose'):
+            await self.client.aclose()
+        elif hasattr(self.client, 'close'):
+            await self.client.close()
+        logger.info("Closed Sophia client connection")
         
     async def is_available(self) -> bool:
         """

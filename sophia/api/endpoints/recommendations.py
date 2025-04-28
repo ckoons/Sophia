@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from datetime import datetime
 
 from sophia.core.recommendation_system import get_recommendation_system
+from sophia.core.llm_adapter import get_llm_adapter
 from sophia.models.recommendation import (
     RecommendationCreate,
     RecommendationUpdate,
@@ -26,6 +27,81 @@ router = APIRouter()
 # ------------------------
 # Recommendations API Routes
 # ------------------------
+
+@router.post("/llm/analyze", response_model=Dict[str, Any])
+async def analyze_with_llm(
+    analysis_data: Dict[str, Any],
+    component_id: Optional[str] = Query(None, description="Optional component ID to focus analysis on"),
+    llm_adapter = Depends(get_llm_adapter)
+):
+    """
+    Analyze data with LLM to generate insights.
+    Useful for getting deeper understanding of metrics or patterns.
+    """
+    try:
+        analysis_result = await llm_adapter.analyze_metrics(
+            metrics_data=analysis_data,
+            component_id=component_id
+        )
+        return analysis_result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze with LLM: {str(e)}"
+        )
+
+@router.post("/llm/generate", response_model=List[Dict[str, Any]])
+async def generate_recommendations_with_llm(
+    analysis_results: Dict[str, Any],
+    component_id: Optional[str] = Query(None, description="Optional component ID to focus recommendations on"),
+    count: int = Query(3, description="Number of recommendations to generate"),
+    llm_adapter = Depends(get_llm_adapter)
+):
+    """
+    Generate recommendations using LLM based on analysis results.
+    Produces structured, actionable recommendations with implementation steps.
+    """
+    try:
+        recommendations = await llm_adapter.generate_recommendations(
+            analysis_results=analysis_results,
+            target_component=component_id,
+            count=count
+        )
+        return recommendations
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate recommendations with LLM: {str(e)}"
+        )
+
+@router.post("/generate/component/{component_id}", response_model=RecommendationResponse)
+async def generate_component_recommendations(
+    component_id: str = Path(..., description="ID of the component to analyze"),
+    time_window: str = Query("7d", description="Time window for analysis (e.g., 1h, 24h, 7d)"),
+    use_llm: bool = Query(True, description="Whether to use LLM for enhanced recommendations"),
+    recommendation_system = Depends(get_recommendation_system)
+):
+    """
+    Analyze a component and automatically generate recommendations.
+    Integrates rule-based and LLM-powered recommendation generation.
+    """
+    try:
+        recommendations = await recommendation_system.generate_recommendations_from_analysis(
+            component_id=component_id,
+            time_window=time_window,
+            use_llm=use_llm
+        )
+        
+        return RecommendationResponse(
+            success=True,
+            message=f"Generated {len(recommendations)} recommendations for component {component_id}",
+            data={"recommendations": recommendations, "count": len(recommendations)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate component recommendations: {str(e)}"
+        )
 
 @router.post("/", response_model=RecommendationResponse)
 async def create_recommendation(

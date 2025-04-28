@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Register Sophia with Hermes.
+Register Sophia with Hermes
 
-This script registers the Sophia component with the Hermes service registry.
+This script registers the Sophia component with Hermes using the standardized
+Tekton registration utility if available, or falls back to a custom implementation.
 """
 
 import os
@@ -10,15 +11,28 @@ import sys
 import json
 import logging
 import argparse
-import requests
+import asyncio
 from pathlib import Path
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger("sophia.register")
+# Try to import Tekton utilities
+try:
+    from sophia.utils.tekton_utils import register_with_hermes as tekton_register
+    from sophia.utils.tekton_utils import get_config, get_logger, setup_logging
+    
+    # Set up logging
+    setup_logging("sophia")
+    logger = get_logger("sophia.scripts.register_with_hermes")
+    HAS_TEKTON_UTILS = True
+except ImportError:
+    # Basic logging setup
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    logger = logging.getLogger("sophia.scripts.register_with_hermes")
+    HAS_TEKTON_UTILS = False
+    
+    import requests
 
 # Default Hermes URL
 DEFAULT_HERMES_URL = "http://localhost:8000"
@@ -106,8 +120,42 @@ def register_component(hermes_url, registration_data):
         logger.error(f"Error registering component: {e}")
         return False
 
-def main():
-    """Main entry point."""
+# Sophia component details
+SOPHIA_COMPONENT_ID = "sophia"
+SOPHIA_COMPONENT_NAME = "Sophia"
+SOPHIA_COMPONENT_DESCRIPTION = "Machine learning and continuous improvement component for Tekton"
+SOPHIA_COMPONENT_VERSION = "0.1.0"
+SOPHIA_COMPONENT_TYPE = "analysis"
+
+async def register_with_tekton_utils(args):
+    """Register Sophia using Tekton utilities."""
+    logger.info("Using Tekton shared utilities for registration")
+    
+    try:
+        success = await tekton_register(
+            component_id=SOPHIA_COMPONENT_ID,
+            component_name=SOPHIA_COMPONENT_NAME,
+            component_description=SOPHIA_COMPONENT_DESCRIPTION,
+            component_version=args.version,
+            component_type=SOPHIA_COMPONENT_TYPE,
+            host=args.host,
+            port=args.port,
+            hermes_url=args.hermes_url
+        )
+        
+        if success:
+            logger.info("Sophia successfully registered with Hermes using Tekton utilities")
+            return True
+        else:
+            logger.error("Failed to register Sophia with Hermes")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error using Tekton registration utilities: {e}")
+        return False
+
+def main_legacy():
+    """Legacy main entry point."""
     args = parse_args()
     
     # Check if Hermes is available
@@ -115,11 +163,8 @@ def main():
         logger.error("Cannot connect to Hermes. Please ensure Hermes is running.")
         sys.exit(1)
     
-    # Component ID for Sophia
-    component_id = "sophia"
-    
     # Check if already registered
-    if check_registration(args.hermes_url, component_id) and not args.force:
+    if check_registration(args.hermes_url, SOPHIA_COMPONENT_ID) and not args.force:
         logger.info("Component already registered. Use --force to re-register.")
         sys.exit(0)
     
@@ -128,9 +173,9 @@ def main():
     
     # Prepare registration data
     registration_data = {
-        "component_id": component_id,
-        "name": "Sophia",
-        "description": "Machine learning and continuous improvement component for Tekton",
+        "component_id": SOPHIA_COMPONENT_ID,
+        "name": SOPHIA_COMPONENT_NAME,
+        "description": SOPHIA_COMPONENT_DESCRIPTION,
         "version": args.version,
         "base_url": base_url,
         "health_endpoint": f"{base_url}/health",
@@ -238,6 +283,39 @@ def main():
         logger.info("Sophia successfully registered with Hermes")
     else:
         logger.error("Failed to register Sophia with Hermes")
+        sys.exit(1)
+
+async def main_async():
+    """Async main entry point."""
+    args = parse_args()
+    
+    # Try using Tekton utilities if available
+    if HAS_TEKTON_UTILS:
+        success = await register_with_tekton_utils(args)
+        if success:
+            return 0
+        else:
+            logger.warning("Falling back to legacy registration method")
+    else:
+        logger.info("Tekton utilities not available, using legacy registration method")
+        
+    # Fall back to legacy registration if Tekton utilities failed or are not available
+    main_legacy()
+    return 0
+
+def main():
+    """Main entry point."""
+    try:
+        if HAS_TEKTON_UTILS:
+            exit_code = asyncio.run(main_async())
+            sys.exit(exit_code)
+        else:
+            main_legacy()
+    except KeyboardInterrupt:
+        logger.info("Registration cancelled")
+        sys.exit(130)
+    except Exception as e:
+        logger.error(f"Error during registration: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
