@@ -79,11 +79,11 @@ The framework handles experiment design, execution, data collection, and analysi
 # Install dependencies
 ./setup.sh
 
-# Run the service with default configuration
-./run_sophia.sh
+# Run the service with the unified launcher
+./scripts/tekton-launch --components sophia
 
 # Or run with custom port
-SOPHIA_PORT=8006 ./run_sophia.sh
+SOPHIA_PORT=8006 ./scripts/tekton-launch --components sophia
 
 # Register with Hermes
 ./register_with_hermes.py
