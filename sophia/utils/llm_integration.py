@@ -11,14 +11,20 @@ import logging
 import asyncio
 from typing import Dict, List, Any, Optional, Union, Callable, AsyncIterator
 
-# Import tekton-llm-client
-from tekton_llm_client import Client as TektonLLMClient
+# Import enhanced tekton-llm-client features
+from tekton_llm_client import (
+    TektonLLMClient,
+    PromptTemplateRegistry, PromptTemplate, load_template,
+    JSONParser, parse_json, extract_json,
+    StreamHandler, collect_stream, stream_to_string,
+    StructuredOutputParser, OutputFormat,
+    ClientSettings, LLMSettings, load_settings, get_env
+)
 from tekton_llm_client.models import (
     ChatMessage, 
     ChatCompletionOptions,
     StreamingChunk
 )
-from tekton_llm_client.adapters import FallbackAdapter
 
 # Import Sophia utilities
 from sophia.utils.tekton_utils import get_config, get_logger
@@ -48,25 +54,6 @@ SYSTEM_PROMPTS = {
                   
     "intelligence": "You are Sophia's Intelligence Measurement System. Analyze component capabilities "
                    "across multiple intelligence dimensions and provide objective assessments."
-}
-
-# Prompt templates for different tasks
-PROMPT_TEMPLATES = {
-    "metrics_analysis": "Analyze the following metrics data from {component_id}:\n\n{metrics_json}\n\n"
-                       "Identify patterns, anomalies, and potential optimization opportunities.",
-    
-    "experiment_design": "Design an experiment to test the hypothesis: {hypothesis}\n\n"
-                        "Available components: {components_list}\n"
-                        "Recent metrics: {metrics_summary}",
-    
-    "recommendation_generation": "Based on the following analysis:\n\n{analysis_summary}\n\n"
-                               "Generate {count} specific recommendations to improve {target}.",
-                               
-    "natural_language_query": "Context information:\n{context_json}\n\nUser query: {query}",
-    
-    "intelligence_assessment": "Assess the intelligence capabilities of {component_id} "
-                              "based on the following data:\n\n{data_json}\n\n"
-                              "Provide ratings for each intelligence dimension with justification."
 }
 
 # Model configuration for different tasks
@@ -110,11 +97,11 @@ MODEL_CONFIGURATION = {
 
 class SophiaLLMIntegration:
     """
-    LLM integration for Sophia using the tekton-llm-client.
+    LLM integration for Sophia using the enhanced tekton-llm-client.
     
     This class provides methods for all LLM-related tasks in Sophia,
     ensuring standardized access to LLM capabilities with proper
-    error handling and retries.
+    error handling, prompt templates, and response parsing.
     """
     
     def __init__(self, component_id: str = "sophia"):
@@ -128,16 +115,22 @@ class SophiaLLMIntegration:
         self.is_initialized = False
         self.clients = {}  # Task-specific clients
         
-        # Get default URL and provider from config
-        self.base_url = get_config("TEKTON_LLM_URL", "http://localhost:8001")
-        self.default_provider = get_config("TEKTON_LLM_PROVIDER", "anthropic")
-        self.default_model = get_config("TEKTON_LLM_MODEL", "claude-3-sonnet-20240229")
+        # Initialize prompt template registry
+        self.template_registry = PromptTemplateRegistry()
+        
+        # Load client settings from environment or config
+        self.settings = load_settings()
+        
+        # Get default URL and provider from settings or config
+        self.base_url = get_env("TEKTON_LLM_URL", "http://localhost:8003")
+        self.default_provider = get_env("TEKTON_LLM_PROVIDER", "anthropic")
+        self.default_model = get_env("TEKTON_LLM_MODEL", "claude-3-sonnet-20240229")
         
         logger.info(f"Initialized Sophia LLM Integration with URL {self.base_url}")
         
     async def initialize(self) -> bool:
         """
-        Initialize the LLM clients.
+        Initialize the LLM clients and load prompt templates.
         
         Returns:
             True if initialization was successful
@@ -147,17 +140,34 @@ class SophiaLLMIntegration:
             
         logger.info("Initializing Sophia LLM Integration...")
         
+        # Load prompt templates from standard locations
+        self._load_templates()
+        
         try:
             # Initialize task-specific clients
             for task_type, config in MODEL_CONFIGURATION.items():
-                client = TektonLLMClient(
+                # Create client settings
+                client_settings = ClientSettings(
                     component_id=f"{self.component_id}-{task_type}",
-                    rhetor_url=self.base_url,
+                    base_url=self.base_url,
                     provider_id=self.default_provider,
                     model_id=config["preferred_model"],
                     timeout=60,
                     max_retries=3,
                     use_fallback=True
+                )
+                
+                # Create LLM settings
+                llm_settings = LLMSettings(
+                    temperature=config["temperature"],
+                    max_tokens=config["max_tokens"],
+                    top_p=0.95
+                )
+                
+                # Create client
+                client = TektonLLMClient(
+                    settings=client_settings,
+                    llm_settings=llm_settings
                 )
                 
                 # Initialize the client to verify connection
@@ -173,6 +183,70 @@ class SophiaLLMIntegration:
         except Exception as e:
             logger.error(f"Failed to initialize Sophia LLM Integration: {e}")
             return False
+            
+    def _load_templates(self) -> None:
+        """
+        Load prompt templates from standard locations and register predefined templates.
+        """
+        # First try to load from standard locations
+        standard_dirs = [
+            "./prompt_templates",
+            "./templates",
+            "./sophia/templates",
+            "./sophia/prompt_templates"
+        ]
+        
+        for template_dir in standard_dirs:
+            if os.path.exists(template_dir):
+                self.template_registry.load_templates_from_directory(template_dir)
+                logger.info(f"Loaded templates from {template_dir}")
+        
+        # Add core templates
+        self.template_registry.register_template(
+            "metrics_analysis",
+            PromptTemplate(
+                template="Analyze the following metrics data from {component_id}:\n\n{metrics_json}\n\n"
+                        "Identify patterns, anomalies, and potential optimization opportunities.",
+                output_format=OutputFormat.JSON
+            )
+        )
+        
+        self.template_registry.register_template(
+            "experiment_design",
+            PromptTemplate(
+                template="Design an experiment to test the hypothesis: {hypothesis}\n\n"
+                        "Available components: {components_list}\n"
+                        "Recent metrics: {metrics_summary}",
+                output_format=OutputFormat.JSON
+            )
+        )
+        
+        self.template_registry.register_template(
+            "recommendation_generation",
+            PromptTemplate(
+                template="Based on the following analysis:\n\n{analysis_summary}\n\n"
+                        "Generate {count} specific recommendations to improve {target}.",
+                output_format=OutputFormat.JSON_ARRAY
+            )
+        )
+        
+        self.template_registry.register_template(
+            "natural_language_query",
+            PromptTemplate(
+                template="Context information:\n{context_json}\n\nUser query: {query}",
+                output_format=OutputFormat.TEXT
+            )
+        )
+        
+        self.template_registry.register_template(
+            "intelligence_assessment",
+            PromptTemplate(
+                template="Assess the intelligence capabilities of {component_id} "
+                        "based on the following data:\n\n{data_json}\n\n"
+                        "Provide ratings for each intelligence dimension with justification.",
+                output_format=OutputFormat.JSON
+            )
+        )
             
     async def shutdown(self) -> None:
         """
@@ -208,14 +282,28 @@ class SophiaLLMIntegration:
         if client is None:
             config = MODEL_CONFIGURATION.get(task_type, MODEL_CONFIGURATION["analysis"])
             
-            client = TektonLLMClient(
+            # Create client settings
+            client_settings = ClientSettings(
                 component_id=f"{self.component_id}-{task_type or 'default'}",
-                rhetor_url=self.base_url,
+                base_url=self.base_url,
                 provider_id=self.default_provider,
                 model_id=config["preferred_model"],
                 timeout=60,
                 max_retries=3,
                 use_fallback=True
+            )
+            
+            # Create LLM settings
+            llm_settings = LLMSettings(
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
+                top_p=0.95
+            )
+            
+            # Create client
+            client = TektonLLMClient(
+                settings=client_settings,
+                llm_settings=llm_settings
             )
             
             # Initialize the client
@@ -245,29 +333,32 @@ class SophiaLLMIntegration:
         client = await self.get_client("analysis")
         
         try:
-            # Format prompt using template
-            prompt = PROMPT_TEMPLATES["metrics_analysis"].format(
-                component_id=component_id or "all components",
-                metrics_json=json.dumps(metrics_data, indent=2)
-            )
+            # Get the metrics analysis template
+            template = self.template_registry.get_template("metrics_analysis")
+            
+            # Format values for the template
+            template_values = {
+                "component_id": component_id or "all components",
+                "metrics_json": json.dumps(metrics_data, indent=2)
+            }
             
             # Create system prompt
             system_prompt = SYSTEM_PROMPTS["analysis"]
             
             # Generate response
             response = await client.generate_text(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                options={
-                    "temperature": MODEL_CONFIGURATION["analysis"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["analysis"]["max_tokens"]
-                }
+                prompt=template.format(**template_values),
+                system_prompt=system_prompt
             )
             
-            # Extract and structure the response
+            # Parse JSON response using JSONParser
+            parser = JSONParser()
+            structured_analysis = parser.parse(response.content)
+            
+            # Return combined result
             return {
                 "analysis": response.content,
-                "structured": await self._extract_structured_analysis(response.content),
+                "structured": structured_analysis,
                 "component_id": component_id,
                 "model": response.model,
                 "provider": response.provider
@@ -301,6 +392,9 @@ class SophiaLLMIntegration:
         client = await self.get_client("recommendation")
         
         try:
+            # Get the recommendation template
+            template = self.template_registry.get_template("recommendation_generation")
+            
             # Create summary of analysis results
             analysis_summary = (
                 analysis_results["analysis"] 
@@ -308,12 +402,12 @@ class SophiaLLMIntegration:
                 else json.dumps(analysis_results, indent=2)
             )
             
-            # Format prompt using template
-            prompt = PROMPT_TEMPLATES["recommendation_generation"].format(
-                analysis_summary=analysis_summary,
-                count=count,
-                target=target_component or "the Tekton ecosystem"
-            )
+            # Format values for the template
+            template_values = {
+                "analysis_summary": analysis_summary,
+                "count": count,
+                "target": target_component or "the Tekton ecosystem"
+            }
             
             # Create system prompt with formatting instructions
             system_prompt = (
@@ -324,16 +418,13 @@ class SophiaLLMIntegration:
             
             # Generate response
             response = await client.generate_text(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                options={
-                    "temperature": MODEL_CONFIGURATION["recommendation"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["recommendation"]["max_tokens"]
-                }
+                prompt=template.format(**template_values),
+                system_prompt=system_prompt
             )
             
-            # Extract recommendations
-            return await self._extract_json_recommendations(response.content)
+            # Parse JSON array using JSONParser
+            parser = JSONParser()
+            return parser.parse_array(response.content)
             
         except Exception as e:
             logger.error(f"Error generating recommendations with LLM: {e}")
@@ -363,6 +454,9 @@ class SophiaLLMIntegration:
         client = await self.get_client("experiment")
         
         try:
+            # Get the experiment design template
+            template = self.template_registry.get_template("experiment_design")
+            
             # Format components list
             components_list = (
                 ", ".join(available_components) 
@@ -377,12 +471,12 @@ class SophiaLLMIntegration:
                 else "No metrics summary provided"
             )
             
-            # Format prompt using template
-            prompt = PROMPT_TEMPLATES["experiment_design"].format(
-                hypothesis=hypothesis,
-                components_list=components_list,
-                metrics_summary=metrics_json
-            )
+            # Format values for the template
+            template_values = {
+                "hypothesis": hypothesis,
+                "components_list": components_list,
+                "metrics_summary": metrics_json
+            }
             
             # Create system prompt with formatting instructions
             system_prompt = (
@@ -392,18 +486,15 @@ class SophiaLLMIntegration:
                 "'test_condition', and 'success_criteria' fields."
             )
             
-            # Generate response
+            # Generate response with structured output parser
             response = await client.generate_text(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                options={
-                    "temperature": MODEL_CONFIGURATION["experiment"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["experiment"]["max_tokens"]
-                }
+                prompt=template.format(**template_values),
+                system_prompt=system_prompt
             )
             
-            # Extract experiment design
-            return await self._extract_json_experiment(response.content)
+            # Parse JSON using JSONParser
+            parser = JSONParser()
+            return parser.parse(response.content)
             
         except Exception as e:
             logger.error(f"Error designing experiment with LLM: {e}")
@@ -442,11 +533,7 @@ class SophiaLLMIntegration:
             # Generate response
             response = await client.generate_text(
                 prompt=prompt,
-                system_prompt=system_prompt,
-                options={
-                    "temperature": MODEL_CONFIGURATION["explanation"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["explanation"]["max_tokens"]
-                }
+                system_prompt=system_prompt
             )
             
             return response.content
@@ -473,24 +560,23 @@ class SophiaLLMIntegration:
         client = await self.get_client()
         
         try:
+            # Get the natural language query template
+            template = self.template_registry.get_template("natural_language_query")
+            
             # Create context if not provided
             if context is None:
                 context = {"query_time": "current time", "system_state": "normal"}
                 
-            # Format prompt using template
-            prompt = PROMPT_TEMPLATES["natural_language_query"].format(
-                context_json=json.dumps(context, indent=2),
-                query=query
-            )
+            # Format values for the template
+            template_values = {
+                "context_json": json.dumps(context, indent=2),
+                "query": query
+            }
             
             # Generate response
             response = await client.generate_text(
-                prompt=prompt,
-                system_prompt=SYSTEM_PROMPTS["default"],
-                options={
-                    "temperature": 0.5,
-                    "max_tokens": 1500
-                }
+                prompt=template.format(**template_values),
+                system_prompt=SYSTEM_PROMPTS["default"]
             )
             
             return {
@@ -527,15 +613,18 @@ class SophiaLLMIntegration:
         client = await self.get_client("intelligence")
         
         try:
+            # Get the intelligence assessment template
+            template = self.template_registry.get_template("intelligence_assessment")
+            
             # Add dimensions to the component data if provided
             if dimensions:
                 component_data["dimensions_to_assess"] = dimensions
                 
-            # Format prompt using template
-            prompt = PROMPT_TEMPLATES["intelligence_assessment"].format(
-                component_id=component_id,
-                data_json=json.dumps(component_data, indent=2)
-            )
+            # Format values for the template
+            template_values = {
+                "component_id": component_id,
+                "data_json": json.dumps(component_data, indent=2)
+            }
             
             # Create system prompt with instructions
             system_prompt = (
@@ -544,18 +633,15 @@ class SophiaLLMIntegration:
                 "ratings and justifications for each intelligence dimension."
             )
             
-            # Generate response
+            # Generate structured response
             response = await client.generate_text(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                options={
-                    "temperature": MODEL_CONFIGURATION["intelligence"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["intelligence"]["max_tokens"]
-                }
+                prompt=template.format(**template_values),
+                system_prompt=system_prompt
             )
             
-            # Extract assessment
-            return await self._extract_json_assessment(response.content)
+            # Parse JSON using JSONParser
+            parser = JSONParser()
+            return parser.parse(response.content)
             
         except Exception as e:
             logger.error(f"Error assessing intelligence with LLM: {e}")
@@ -587,221 +673,23 @@ class SophiaLLMIntegration:
             prompt = f"Explain analysis {analysis_id} in detail, covering the methods used, "
                    f"findings, and recommendations."
             
-            # Start streaming
-            async for chunk in client.generate_text(
+            # Create StreamHandler with the callback
+            stream_handler = StreamHandler(callback_fn=callback)
+            
+            # Start streaming with the handler
+            response_stream = await client.generate_text(
                 prompt=prompt,
                 system_prompt=system_prompt,
-                streaming=True,
-                options={
-                    "temperature": MODEL_CONFIGURATION["explanation"]["temperature"],
-                    "max_tokens": MODEL_CONFIGURATION["explanation"]["max_tokens"]
-                }
-            ):
-                # Only process text chunks
-                if hasattr(chunk, 'chunk') and chunk.chunk:
-                    callback(chunk.chunk)
-                    
+                streaming=True
+            )
+            
+            # Process the stream with the handler
+            await stream_handler.process_stream(response_stream)
+                
         except Exception as e:
             logger.error(f"Error streaming explanation with LLM: {e}")
             callback(f"\nError: Unable to complete explanation due to service error: {str(e)}")
             
-    async def _extract_structured_analysis(self, content: str) -> Dict[str, Any]:
-        """
-        Extract structured analysis from LLM response.
-        
-        Args:
-            content: Raw LLM response
-            
-        Returns:
-            Structured analysis data
-        """
-        # Look for JSON content
-        try:
-            # Check if the response contains JSON (common format)
-            start_idx = content.find('{')
-            end_idx = content.rfind('}') + 1
-            
-            if start_idx >= 0 and end_idx > start_idx:
-                json_str = content[start_idx:end_idx]
-                return json.loads(json_str)
-                
-            # If no JSON detected, create a basic structure
-            return {
-                "text_analysis": content,
-                "patterns_detected": await self._extract_key_points(content, "pattern"),
-                "anomalies": await self._extract_key_points(content, "anomaly"),
-                "insights": await self._extract_key_points(content, "insight")
-            }
-            
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON from analysis response")
-            return {"text_analysis": content}
-        except Exception as e:
-            logger.error(f"Error extracting structured analysis: {e}")
-            return {"text_analysis": content, "error": str(e)}
-            
-    async def _extract_json_recommendations(self, content: str) -> List[Dict[str, Any]]:
-        """
-        Extract JSON recommendations from LLM response.
-        
-        Args:
-            content: Raw LLM response
-            
-        Returns:
-            List of recommendation objects
-        """
-        try:
-            # Find JSON array in the content
-            start_idx = content.find('[')
-            end_idx = content.rfind(']') + 1
-            
-            if start_idx >= 0 and end_idx > start_idx:
-                json_str = content[start_idx:end_idx]
-                return json.loads(json_str)
-            else:
-                # Fallback to basic parsing if JSON not found
-                return [{
-                    "title": "Recommendation", 
-                    "description": content,
-                    "impact": "unknown",
-                    "effort": "unknown"
-                }]
-                
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON recommendations")
-            return [{
-                "title": "Recommendation", 
-                "description": content,
-                "impact": "unknown",
-                "effort": "unknown",
-                "parsing_error": "Could not parse structured recommendations"
-            }]
-        except Exception as e:
-            logger.error(f"Error extracting JSON recommendations: {e}")
-            return [{
-                "title": "Error in recommendation parsing", 
-                "description": f"Error: {str(e)}",
-                "impact": "unknown",
-                "effort": "unknown"
-            }]
-            
-    async def _extract_json_experiment(self, content: str) -> Dict[str, Any]:
-        """
-        Extract JSON experiment design from LLM response.
-        
-        Args:
-            content: Raw LLM response
-            
-        Returns:
-            Experiment design object
-        """
-        try:
-            # Find JSON object in the content
-            start_idx = content.find('{')
-            end_idx = content.rfind('}') + 1
-            
-            if start_idx >= 0 and end_idx > start_idx:
-                json_str = content[start_idx:end_idx]
-                return json.loads(json_str)
-            else:
-                # Fallback to basic parsing if JSON not found
-                return {
-                    "title": "Experiment Design", 
-                    "description": content,
-                    "type": "unstructured"
-                }
-                
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON experiment design")
-            return {
-                "title": "Experiment Design", 
-                "description": content,
-                "type": "unstructured",
-                "parsing_error": "Could not parse structured experiment design"
-            }
-        except Exception as e:
-            logger.error(f"Error extracting JSON experiment design: {e}")
-            return {
-                "title": "Error in experiment design parsing", 
-                "description": f"Error: {str(e)}",
-                "type": "error"
-            }
-            
-    async def _extract_json_assessment(self, content: str) -> Dict[str, Any]:
-        """
-        Extract JSON intelligence assessment from LLM response.
-        
-        Args:
-            content: Raw LLM response
-            
-        Returns:
-            Intelligence assessment object
-        """
-        try:
-            # Find JSON object in the content
-            start_idx = content.find('{')
-            end_idx = content.rfind('}') + 1
-            
-            if start_idx >= 0 and end_idx > start_idx:
-                json_str = content[start_idx:end_idx]
-                return json.loads(json_str)
-            else:
-                # Fallback to basic parsing if JSON not found
-                return {
-                    "dimensions": {},
-                    "overall_assessment": content,
-                    "type": "unstructured"
-                }
-                
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON intelligence assessment")
-            return {
-                "dimensions": {},
-                "overall_assessment": content,
-                "type": "unstructured",
-                "parsing_error": "Could not parse structured intelligence assessment"
-            }
-        except Exception as e:
-            logger.error(f"Error extracting JSON intelligence assessment: {e}")
-            return {
-                "dimensions": {},
-                "overall_assessment": f"Error: {str(e)}",
-                "type": "error"
-            }
-            
-    async def _extract_key_points(self, content: str, point_type: str) -> List[str]:
-        """
-        Extract key points of a specific type from content.
-        
-        Args:
-            content: Content to analyze
-            point_type: Type of points to extract (pattern, anomaly, insight)
-            
-        Returns:
-            List of extracted points
-        """
-        # Simple extraction based on line analysis
-        # In a production system, this would use more sophisticated NLP
-        points = []
-        
-        # Convert to lowercase for case-insensitive matching
-        content_lower = content.lower()
-        point_type_lower = point_type.lower()
-        
-        # Split into lines and look for relevant content
-        lines = content.split('\n')
-        
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            if point_type_lower in line_lower:
-                # Found a line with the point type
-                points.append(line.strip())
-                # Also include the next line if it doesn't have a different point type
-                if i+1 < len(lines) and not any(pt in lines[i+1].lower() for pt in ["pattern", "anomaly", "insight"]):
-                    points.append(lines[i+1].strip())
-                    
-        return points
-        
 # Global singleton instance
 _llm_integration = SophiaLLMIntegration()
 
