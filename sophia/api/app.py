@@ -67,6 +67,15 @@ app.add_middleware(
 # Import API endpoint routers
 from sophia.api.endpoints import api_router
 
+# Import FastMCP endpoints
+try:
+    from sophia.api.fastmcp_endpoints import fastmcp_router
+    fastmcp_available = True
+    logger.info("FastMCP endpoints loaded successfully")
+except ImportError as e:
+    fastmcp_available = False
+    logger.warning(f"FastMCP endpoints not available: {e}")
+
 # Create system router for system-level endpoints
 system_router = APIRouter(tags=["System"])
 
@@ -251,6 +260,11 @@ async def health_check():
 # Include routers
 app.include_router(api_router, prefix="/api")
 app.include_router(system_router)
+
+# Include FastMCP endpoints if available
+if fastmcp_available:
+    app.include_router(fastmcp_router, prefix="/mcp", tags=["MCP"])
+    logger.info("FastMCP router included at /mcp")
 
 # Startup event
 @app.on_event("startup")

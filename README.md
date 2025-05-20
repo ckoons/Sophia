@@ -14,6 +14,7 @@ Sophia serves as the scientific foundation for the Tekton ecosystem, providing m
 - **Recommendation System**: Generation and tracking of improvement suggestions based on analysis and experiments
 - **Component Analysis**: Performance analysis of individual components and their interactions
 - **Research Capabilities**: Advanced research tools including Computational Spectral Analysis (CSA) and Catastrophe Theory (CT) for neural network analysis
+- **MCP Integration**: Model Context Protocol integration with 16 specialized tools and advanced workflows
 
 ## Architecture
 
@@ -36,6 +37,7 @@ Sophia follows a modular architecture with:
    - Hermes: For service discovery and registration
    - Engram: For persistent memory storage
    - Prometheus: For planning integration
+   - FastMCP: For Model Context Protocol integration
 
 4. **UI Components**:
    - Dashboard for visualizing metrics and intelligence profiles
@@ -206,6 +208,38 @@ Sophia provides a comprehensive API following the Single Port Architecture patte
 - `GET /api/research/projects/{id}` - Get project details
 - `PUT /api/research/projects/{id}` - Update a research project
 
+### MCP API
+
+Sophia provides Model Context Protocol integration with 16 specialized tools:
+
+#### ML/AI Analysis Tools (6 tools)
+- `POST /mcp/tools/analyze_component_performance` - Analyze component performance using ML
+- `POST /mcp/tools/extract_patterns` - Extract behavioral patterns from data
+- `POST /mcp/tools/predict_optimization_impact` - Predict optimization impact
+- `POST /mcp/tools/design_ml_experiment` - Design ML experiments
+- `POST /mcp/tools/analyze_ecosystem_trends` - Analyze ecosystem-wide trends
+- `POST /mcp/tools/forecast_system_evolution` - Forecast system evolution
+
+#### Research Management Tools (6 tools)
+- `POST /mcp/tools/create_research_project` - Create research projects
+- `POST /mcp/tools/manage_experiment_lifecycle` - Manage experiment lifecycle
+- `POST /mcp/tools/validate_optimization_results` - Validate optimization results
+- `POST /mcp/tools/generate_research_recommendations` - Generate research recommendations
+- `POST /mcp/tools/track_research_progress` - Track research progress
+- `POST /mcp/tools/synthesize_research_findings` - Synthesize research findings
+
+#### Intelligence Measurement Tools (4 tools)
+- `POST /mcp/tools/measure_component_intelligence` - Measure component intelligence
+- `POST /mcp/tools/compare_intelligence_profiles` - Compare intelligence profiles
+- `POST /mcp/tools/track_intelligence_evolution` - Track intelligence evolution
+- `POST /mcp/tools/generate_intelligence_insights` - Generate intelligence insights
+
+#### Advanced Workflows
+- `POST /mcp/workflows/complete_research_analysis` - Complete research analysis workflow
+- `POST /mcp/workflows/intelligence_assessment` - Intelligence assessment workflow
+- `POST /mcp/workflows/component_optimization` - Component optimization workflow
+- `POST /mcp/workflows/trend_analysis` - Advanced trend analysis workflow
+
 ### WebSocket Connection
 
 - `/ws` - WebSocket connection for real-time updates
@@ -227,6 +261,7 @@ Sophia registers with Hermes to participate in the Tekton ecosystem:
 ## Documentation
 
 - [Implementation Status](./IMPLEMENTATION_STATUS.md): Current implementation status
+- [MCP Integration](./MCP_INTEGRATION.md): Model Context Protocol integration with 16 tools and workflows
 - [Sophia Architecture](../docs/SOPHIA_ARCHITECTURE.md): Detailed architecture design
 - [Intelligence Dimensions](../docs/SOPHIA_INTELLIGENCE_DIMENSIONS.md): Framework for measuring AI intelligence
 - [LLM Integration](../docs/SOPHIA_LLM_INTEGRATION.md): Integration with language models
