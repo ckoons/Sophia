@@ -10,7 +10,13 @@ context management, and CLI functionalities.
 import os
 import importlib
 import logging
-from typing import Dict, Any, Optional, Union, List
+import asyncio
+import inspect
+import functools
+from typing import Dict, Any, Optional, Union, List, Callable, Awaitable, TypeVar, cast
+
+# Type variables for function signatures
+T = TypeVar('T')
 
 # Set up initial logging
 logging.basicConfig(
@@ -405,5 +411,24 @@ def register_with_hermes(
             logger.error(f"Registration failed: {e}")
             return False
             
+# Coroutine compatibility
+def async_decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+    """
+    A replacement for deprecated asyncio.coroutine decorator.
+    This decorator properly handles async functions in Python 3.12+.
+    
+    Args:
+        func: The async function to decorate
+        
+    Returns:
+        Decorated function
+    """
+    if not asyncio.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            return await func(*args, **kwargs)
+        return wrapper
+    return func
+
 # Initialize the utilities
 import_tekton_utils()

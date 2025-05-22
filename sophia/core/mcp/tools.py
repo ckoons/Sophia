@@ -1195,8 +1195,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="analyze_component_performance",
         description="Analyze performance characteristics of Tekton components using ML techniques",
-        parameters={
-            "component_name": {"type": "string", "description": "Name of the component to analyze"},
+        input_schema={"parameters": {
+            "component_name": {"type": "string", "description": "Name of the component to analyze"}, "return_type": {"type": "object"}},
             "metrics_data": {"type": "object", "description": "Optional metrics data for analysis"},
             "analysis_depth": {"type": "string", "description": "Depth of analysis: basic, medium, comprehensive"}
         },
@@ -1205,8 +1205,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="extract_patterns",
         description="Extract behavioral and performance patterns from component data",
-        parameters={
-            "data_source": {"type": "string", "description": "Source of data for pattern extraction"},
+        input_schema={"parameters": {
+            "data_source": {"type": "string", "description": "Source of data for pattern extraction"}, "return_type": {"type": "object"}},
             "pattern_types": {"type": "array", "description": "Types of patterns to extract"},
             "time_window": {"type": "string", "description": "Time window for pattern analysis"}
         },
@@ -1215,8 +1215,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="predict_optimization_impact",
         description="Predict the impact of proposed optimizations using ML models",
-        parameters={
-            "optimization_type": {"type": "string", "description": "Type of optimization to evaluate"},
+        input_schema={"parameters": {
+            "optimization_type": {"type": "string", "description": "Type of optimization to evaluate"}, "return_type": {"type": "object"}},
             "target_component": {"type": "string", "description": "Component to be optimized"},
             "parameters": {"type": "object", "description": "Optimization parameters"}
         },
@@ -1225,8 +1225,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="design_ml_experiment",
         description="Design ML experiments for component optimization and analysis",
-        parameters={
-            "hypothesis": {"type": "string", "description": "Research hypothesis to test"},
+        input_schema={"parameters": {
+            "hypothesis": {"type": "string", "description": "Research hypothesis to test"}, "return_type": {"type": "object"}},
             "target_metrics": {"type": "array", "description": "Metrics to measure"},
             "experiment_duration": {"type": "string", "description": "Duration of the experiment"}
         },
@@ -1235,8 +1235,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="analyze_ecosystem_trends",
         description="Analyze trends across the entire Tekton ecosystem",
-        parameters={
-            "time_range": {"type": "string", "description": "Time range for trend analysis"},
+        input_schema={"parameters": {
+            "time_range": {"type": "string", "description": "Time range for trend analysis"}, "return_type": {"type": "object"}},
             "trend_categories": {"type": "array", "description": "Categories of trends to analyze"}
         },
         handler=SophiaMLAnalysisTools.analyze_ecosystem_trends
@@ -1244,8 +1244,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="forecast_system_evolution",
         description="Forecast how the Tekton system will evolve over time",
-        parameters={
-            "forecast_horizon": {"type": "string", "description": "Time horizon for forecasting"},
+        input_schema={"parameters": {
+            "forecast_horizon": {"type": "string", "description": "Time horizon for forecasting"}, "return_type": {"type": "object"}},
             "evolution_factors": {"type": "array", "description": "Factors to consider in evolution"}
         },
         handler=SophiaMLAnalysisTools.forecast_system_evolution
@@ -1255,8 +1255,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="create_research_project",
         description="Create and initialize new research projects",
-        parameters={
-            "project_title": {"type": "string", "description": "Title of the research project"},
+        input_schema={"parameters": {
+            "project_title": {"type": "string", "description": "Title of the research project"}, "return_type": {"type": "object"}},
             "research_objectives": {"type": "array", "description": "List of research objectives"},
             "timeline": {"type": "string", "description": "Project timeline"}
         },
@@ -1265,8 +1265,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="manage_experiment_lifecycle",
         description="Manage the complete lifecycle of research experiments",
-        parameters={
-            "experiment_id": {"type": "string", "description": "ID of the experiment"},
+        input_schema={"parameters": {
+            "experiment_id": {"type": "string", "description": "ID of the experiment"}, "return_type": {"type": "object"}},
             "action": {"type": "string", "description": "Action to perform"},
             "parameters": {"type": "object", "description": "Action parameters"}
         },
@@ -1275,8 +1275,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="validate_optimization_results",
         description="Validate the results of optimization implementations",
-        parameters={
-            "optimization_id": {"type": "string", "description": "ID of the optimization"},
+        input_schema={"parameters": {
+            "optimization_id": {"type": "string", "description": "ID of the optimization"}, "return_type": {"type": "object"}},
             "validation_criteria": {"type": "array", "description": "Criteria for validation"},
             "comparison_baseline": {"type": "string", "description": "Baseline for comparison"}
         },
@@ -1285,8 +1285,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="generate_research_recommendations",
         description="Generate research recommendations based on findings",
-        parameters={
-            "research_area": {"type": "string", "description": "Area of research"},
+        input_schema={"parameters": {
+            "research_area": {"type": "string", "description": "Area of research"}, "return_type": {"type": "object"}},
             "current_findings": {"type": "object", "description": "Current research findings"},
             "priority_level": {"type": "string", "description": "Priority level for recommendations"}
         },
@@ -1295,8 +1295,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="track_research_progress",
         description="Track and monitor progress of ongoing research projects",
-        parameters={
-            "project_id": {"type": "string", "description": "ID of the project to track"},
+        input_schema={"parameters": {
+            "project_id": {"type": "string", "description": "ID of the project to track"}, "return_type": {"type": "object"}},
             "progress_metrics": {"type": "array", "description": "Metrics to track"}
         },
         handler=SophiaResearchManagementTools.track_research_progress
@@ -1304,8 +1304,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="synthesize_research_findings",
         description="Synthesize findings across multiple research projects",
-        parameters={
-            "research_projects": {"type": "array", "description": "List of project IDs"},
+        input_schema={"parameters": {
+            "research_projects": {"type": "array", "description": "List of project IDs"}, "return_type": {"type": "object"}},
             "synthesis_scope": {"type": "string", "description": "Scope of synthesis"}
         },
         handler=SophiaResearchManagementTools.synthesize_research_findings
@@ -1315,8 +1315,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="measure_component_intelligence",
         description="Measure intelligence levels across different dimensions",
-        parameters={
-            "component_name": {"type": "string", "description": "Name of the component"},
+        input_schema={"parameters": {
+            "component_name": {"type": "string", "description": "Name of the component"}, "return_type": {"type": "object"}},
             "intelligence_dimensions": {"type": "array", "description": "Dimensions to measure"},
             "measurement_depth": {"type": "string", "description": "Depth of measurement"}
         },
@@ -1325,8 +1325,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="compare_intelligence_profiles",
         description="Compare intelligence profiles across multiple components",
-        parameters={
-            "components": {"type": "array", "description": "List of components to compare"},
+        input_schema={"parameters": {
+            "components": {"type": "array", "description": "List of components to compare"}, "return_type": {"type": "object"}},
             "comparison_dimensions": {"type": "array", "description": "Dimensions for comparison"}
         },
         handler=SophiaIntelligenceMeasurementTools.compare_intelligence_profiles
@@ -1334,8 +1334,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="track_intelligence_evolution",
         description="Track how component intelligence evolves over time",
-        parameters={
-            "component_name": {"type": "string", "description": "Name of the component"},
+        input_schema={"parameters": {
+            "component_name": {"type": "string", "description": "Name of the component"}, "return_type": {"type": "object"}},
             "tracking_period": {"type": "string", "description": "Period for tracking"},
             "evolution_metrics": {"type": "array", "description": "Metrics to track"}
         },
@@ -1344,8 +1344,8 @@ SOPHIA_MCP_TOOLS = [
     MCPTool(
         name="generate_intelligence_insights",
         description="Generate insights about intelligence patterns and opportunities",
-        parameters={
-            "analysis_scope": {"type": "string", "description": "Scope of analysis"},
+        input_schema={"parameters": {
+            "analysis_scope": {"type": "string", "description": "Scope of analysis"}, "return_type": {"type": "object"}},
             "insight_categories": {"type": "array", "description": "Categories of insights"}
         },
         handler=SophiaIntelligenceMeasurementTools.generate_intelligence_insights
