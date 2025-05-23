@@ -527,8 +527,8 @@ class SophiaLLMIntegration:
             system_prompt = SYSTEM_PROMPTS["explanation"] + f"\n\nTarget audience: {audience}"
             
             # Create prompt with analysis data
-            prompt = f"Explain the following analysis results in a way appropriate for a {audience} "
-                   f"audience:\n\n{json.dumps(analysis_data, indent=2)}"
+            prompt = (f"Explain the following analysis results in a way appropriate for a {audience} "
+                      f"audience:\n\n{json.dumps(analysis_data, indent=2)}")
             
             # Generate response
             response = await client.generate_text(
@@ -670,8 +670,8 @@ class SophiaLLMIntegration:
             system_prompt = SYSTEM_PROMPTS["explanation"]
             
             # Create prompt
-            prompt = f"Explain analysis {analysis_id} in detail, covering the methods used, "
-                   f"findings, and recommendations."
+            prompt = (f"Explain analysis {analysis_id} in detail, covering the methods used, "
+                      f"findings, and recommendations.")
             
             # Create StreamHandler with the callback
             stream_handler = StreamHandler(callback_fn=callback)
