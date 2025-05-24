@@ -12,9 +12,9 @@ from tekton.mcp.fastmcp.schema import MCPCapability
 class MLAnalysisCapability(MCPCapability):
     """Capability for machine learning and AI analysis."""
     
-    name = "ml_analysis"
-    description = "Perform ML/AI analysis, pattern extraction, and predictive modeling"
-    version = "1.0.0"
+    name: str = "ml_analysis"
+    description: str = "Perform ML/AI analysis, pattern extraction, and predictive modeling"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
@@ -46,9 +46,9 @@ class MLAnalysisCapability(MCPCapability):
 class ResearchManagementCapability(MCPCapability):
     """Capability for research project and experiment management."""
     
-    name = "research_management"
-    description = "Manage research projects, experiments, and knowledge discovery"
-    version = "1.0.0"
+    name: str = "research_management"
+    description: str = "Manage research projects, experiments, and knowledge discovery"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:
@@ -79,9 +79,9 @@ class ResearchManagementCapability(MCPCapability):
 class IntelligenceMeasurementCapability(MCPCapability):
     """Capability for measuring and tracking component intelligence."""
     
-    name = "intelligence_measurement"
-    description = "Measure, compare, and track intelligence across components"
-    version = "1.0.0"
+    name: str = "intelligence_measurement"
+    description: str = "Measure, compare, and track intelligence across components"
+    version: str = "1.0.0"
     
     @classmethod
     def get_supported_operations(cls) -> List[str]:

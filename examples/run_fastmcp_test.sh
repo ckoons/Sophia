@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 SOPHIA_HOST="localhost"
-SOPHIA_PORT="8009"
+SOPHIA_PORT="8014"
 BASE_URL="http://${SOPHIA_HOST}:${SOPHIA_PORT}"
 MCP_BASE_URL="${BASE_URL}/api/mcp/v2"
 

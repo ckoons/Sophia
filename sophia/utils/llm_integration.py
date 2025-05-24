@@ -119,7 +119,7 @@ class SophiaLLMIntegration:
         self.template_registry = PromptTemplateRegistry()
         
         # Load client settings from environment or config
-        self.settings = load_settings()
+        self.settings = load_settings("sophia")
         
         # Get default URL and provider from settings or config
         self.base_url = get_env("TEKTON_LLM_URL", "http://localhost:8003")
