@@ -17,13 +17,17 @@ from pydantic import BaseModel, Field
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sophia.api.enhanced")
 
-# Add shared utils to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../../shared/utils'))
+# Add shared utils to path - correct path to shared/utils from Sophia/sophia/api
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../shared/utils')))
 try:
     from graceful_shutdown import GracefulShutdown, add_fastapi_shutdown
-except ImportError:
-    logger.warning("Could not import graceful_shutdown, continuing without it")
+    from health_check import create_health_response
+    from hermes_registration import HermesRegistration, heartbeat_loop
+except ImportError as e:
+    logger.warning(f"Could not import shared utils: {e}")
     GracefulShutdown = None
+    create_health_response = None
+    HermesRegistration = None
 
 # Create FastAPI app
 app = FastAPI(
@@ -122,6 +126,9 @@ component_health_cache: Dict[str, Dict[str, Any]] = {}
 last_health_check: Optional[datetime] = None
 shutdown_handler: Optional[GracefulShutdown] = None
 background_task = None
+is_registered_with_hermes: bool = False
+hermes_registration: Optional[HermesRegistration] = None
+heartbeat_task = None
 
 async def get_session() -> aiohttp.ClientSession:
     """Get or create aiohttp session"""
@@ -166,6 +173,20 @@ async def cancel_background_task():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
+    global heartbeat_task
+    
+    # Cancel heartbeat task
+    if heartbeat_task:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+    
+    # Deregister from Hermes
+    if hermes_registration and is_registered_with_hermes:
+        await hermes_registration.deregister("sophia")
+    
     if shutdown_handler and not shutdown_handler.is_shutting_down:
         await shutdown_handler.shutdown()
     else:
@@ -354,17 +375,43 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "version": "0.2.0",
-        "timestamp": datetime.now().isoformat(),
-        "services": {
-            "ml_engine": "operational",
-            "research_framework": "operational",
-            "intelligence_measurement": "operational"
-        },
-        "last_health_check": last_health_check.isoformat() if last_health_check else None
-    }
+    # Use standardized health response if available
+    if create_health_response:
+        return create_health_response(
+            component_name="sophia",
+            port=8014,
+            version="0.2.0",
+            status="healthy",
+            registered=is_registered_with_hermes,
+            details={
+                "services": {
+                    "ml_engine": "operational",
+                    "research_framework": "operational",
+                    "intelligence_measurement": "operational"
+                },
+                "last_health_check": last_health_check.isoformat() if last_health_check else None,
+                "components_monitored": len(component_health_cache)
+            }
+        )
+    else:
+        # Fallback to manual format
+        return {
+            "status": "healthy",
+            "version": "0.2.0",
+            "timestamp": datetime.now().isoformat(),
+            "component": "sophia",
+            "port": 8014,
+            "registered_with_hermes": is_registered_with_hermes,
+            "details": {
+                "services": {
+                    "ml_engine": "operational",
+                    "research_framework": "operational",
+                    "intelligence_measurement": "operational"
+                },
+                "last_health_check": last_health_check.isoformat() if last_health_check else None,
+                "components_monitored": len(component_health_cache)
+            }
+        }
 
 @app.get("/api/mcp/v1/sophia-status")
 async def sophia_status():
@@ -551,7 +598,7 @@ async def get_improvement_recommendations():
 @app.on_event("startup") 
 async def startup_event():
     """Initialize on startup"""
-    global background_task, shutdown_handler
+    global background_task, shutdown_handler, is_registered_with_hermes, hermes_registration, heartbeat_task
     logger.info("Starting Sophia Enhanced API")
     
     # Initialize graceful shutdown if available
@@ -566,6 +613,33 @@ async def startup_event():
     await update_component_health()
     # Start background task
     background_task = asyncio.create_task(periodic_health_update())
+    
+    # Register with Hermes if available
+    if HermesRegistration:
+        hermes_registration = HermesRegistration()
+        is_registered_with_hermes = await hermes_registration.register_component(
+            component_name="sophia",
+            port=8014,
+            version="0.2.0",
+            capabilities=[
+                "intelligence_measurement",
+                "component_health_monitoring",
+                "ml_analysis",
+                "research_management"
+            ],
+            metadata={
+                "enhanced": True,
+                "intelligence_dimensions": 7
+            }
+        )
+        
+        # Start heartbeat task if registered
+        if is_registered_with_hermes:
+            heartbeat_task = asyncio.create_task(
+                heartbeat_loop(hermes_registration, "sophia", interval=30)
+            )
+            logger.info("Started Hermes heartbeat task")
+    
     logger.info("Sophia Enhanced API started successfully")
 
 async def periodic_health_update():
