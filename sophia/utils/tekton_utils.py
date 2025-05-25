@@ -148,7 +148,7 @@ def get_sophia_base_url() -> str:
 def setup_logging(component_name: str = "sophia") -> None:
     """
     Set up logging using tekton_logging if available.
-    
+
     Args:
         component_name: Name of the component for logging
     """

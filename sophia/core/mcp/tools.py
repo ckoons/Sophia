@@ -1353,4 +1353,9 @@ SOPHIA_MCP_TOOLS = [
 ]
 
 # Export all tools for FastMCP registration
-__all__ = ["SOPHIA_MCP_TOOLS"]
+# Create separate tool lists for backward compatibility with __init__.py imports
+ml_analysis_tools = SOPHIA_MCP_TOOLS[:6]  # First 6 are ML Analysis tools
+research_management_tools = SOPHIA_MCP_TOOLS[6:12]  # Next 6 are Research Management tools
+intelligence_measurement_tools = SOPHIA_MCP_TOOLS[12:]  # Last 4 are Intelligence Measurement tools
+
+__all__ = ["SOPHIA_MCP_TOOLS", "ml_analysis_tools", "research_management_tools", "intelligence_measurement_tools"]

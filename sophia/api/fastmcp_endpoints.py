@@ -47,10 +47,10 @@ fastmcp_server = FastMCPServer(
     description="Sophia ML/AI Analysis and Research Management MCP Server"
 )
 
-# Register capabilities and tools
-fastmcp_server.register_capability(MLAnalysisCapability)
-fastmcp_server.register_capability(ResearchManagementCapability)
-fastmcp_server.register_capability(IntelligenceMeasurementCapability)
+# Register capabilities and tools (instantiate the capability classes)
+fastmcp_server.register_capability(MLAnalysisCapability())
+fastmcp_server.register_capability(ResearchManagementCapability())
+fastmcp_server.register_capability(IntelligenceMeasurementCapability())
 
 # Register all tools
 for tool in ml_analysis_tools + research_management_tools + intelligence_measurement_tools:
