@@ -34,12 +34,15 @@ from sophia.models.research import ResearchProjectCreate, ResearchProjectUpdate,
 
 # Import Sophia utilities
 try:
-    from sophia.utils.tekton_utils import setup_logging, get_logger, get_config
+    from sophia.utils.tekton_utils import get_config
     from sophia.utils.llm_integration import get_llm_integration
-    
-    # Setup logging with Tekton shared utilities
-    setup_logging("sophia")
-    logger = get_logger("sophia.api")
+
+    # Use fallback logging to avoid component_id formatting issues
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] [sophia] %(message)s"
+    )
+    logger = logging.getLogger("sophia.api")
 except ImportError:
     # Fallback to standard logging
     logging.basicConfig(
@@ -300,12 +303,23 @@ async def startup_event():
         
         # Register with Hermes if available
         try:
-            from sophia.utils.tekton_utils import register_with_hermes
-            success = await register_with_hermes()
-            if success:
-                logger.info("Registered with Hermes successfully")
-            else:
-                logger.warning("Failed to register with Hermes")
+            import aiohttp
+            
+            port = int(os.environ.get("SOPHIA_PORT", 8014))
+            async with aiohttp.ClientSession() as session:
+                reg_data = {
+                    "name": "sophia",
+                    "version": "0.1.0",
+                    "type": "sophia",
+                    "endpoint": f"http://localhost:{port}",
+                    "capabilities": ["metrics", "analysis", "experiments", "recommendations", "intelligence", "ml"],
+                    "metadata": {"description": "Machine learning and continuous improvement"}
+                }
+                async with session.post("http://localhost:8001/api/register", json=reg_data) as resp:
+                    if resp.status == 200:
+                        logger.info("Successfully registered with Hermes")
+                    else:
+                        logger.warning(f"Failed to register with Hermes: HTTP {resp.status}")
         except Exception as hermes_error:
             logger.warning(f"Failed to register with Hermes: {hermes_error}")
         
@@ -355,3 +369,17 @@ async def shutdown_event():
         logger.info("Sophia API server shutdown complete")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
+
+if __name__ == "__main__":
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Sophia API Server")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("SOPHIA_PORT", 8014)),
+                       help="Port to run the server on")
+    parser.add_argument("--host", type=str, default="0.0.0.0",
+                       help="Host to bind the server to")
+    args = parser.parse_args()
+
+    logger.info(f"Starting Sophia server on {args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port)

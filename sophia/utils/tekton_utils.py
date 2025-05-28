@@ -340,9 +340,9 @@ def register_with_hermes(
     """
     if has_util("tekton_registration"):
         # Get values with defaults
-        host = host or get_config("SOPHIA_HOST", "localhost")
+        host = host or os.environ.get("SOPHIA_HOST", "localhost")
         port = port or get_sophia_port()
-        hermes_url = hermes_url or get_config("HERMES_URL", "http://localhost:8000")
+        hermes_url = hermes_url or os.environ.get("HERMES_URL", "http://localhost:8001")
         
         capabilities = capabilities or [
             "metrics", "analysis", "experiments", "recommendations", 
@@ -391,9 +391,9 @@ def register_with_hermes(
         # Try to use custom registration script
         try:
             from sophia.scripts.register_with_hermes import register_component
-            host = host or get_config("SOPHIA_HOST", "localhost")
+            host = host or os.environ.get("SOPHIA_HOST", "localhost")
             port = port or get_sophia_port()
-            hermes_url = hermes_url or get_config("HERMES_URL", "http://localhost:8000")
+            hermes_url = hermes_url or os.environ.get("HERMES_URL", "http://localhost:8001")
             
             return register_component(
                 component_id=component_id,
