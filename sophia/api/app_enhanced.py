@@ -13,16 +13,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+# Add Tekton root to path if not already present
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+if tekton_root not in sys.path:
+    sys.path.insert(0, tekton_root)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sophia.api.enhanced")
 
-# Add shared utils to path - correct path to shared/utils from Sophia/sophia/api
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../shared/utils')))
+# Import shared utils with correct path
 try:
-    from graceful_shutdown import GracefulShutdown, add_fastapi_shutdown
-    from health_check import create_health_response
-    from hermes_registration import HermesRegistration, heartbeat_loop
+    from shared.utils.graceful_shutdown import GracefulShutdown, add_fastapi_shutdown
+    from shared.utils.health_check import create_health_response
+    from shared.utils.hermes_registration import HermesRegistration, heartbeat_loop
 except ImportError as e:
     logger.warning(f"Could not import shared utils: {e}")
     GracefulShutdown = None
