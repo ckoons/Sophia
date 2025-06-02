@@ -6,15 +6,29 @@ providing HTTP and WebSocket endpoints for accessing Sophia's capabilities.
 """
 
 import os
+import sys
 import json
 import asyncio
-import logging
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# Add Tekton root to path if not already present
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+if tekton_root not in sys.path:
+    sys.path.insert(0, tekton_root)
+
+# Import shared utilities
+from shared.utils.hermes_registration import HermesRegistration, heartbeat_loop
+from shared.utils.logging_setup import setup_component_logging
+from shared.utils.env_config import get_component_config
+from shared.utils.errors import StartupError
+from shared.utils.startup import component_startup, StartupMetrics
+from shared.utils.shutdown import GracefulShutdown
 
 # Import Sophia core modules
 from sophia.core.metrics_engine import get_metrics_engine
@@ -36,26 +50,151 @@ from sophia.models.research import ResearchProjectCreate, ResearchProjectUpdate,
 try:
     from sophia.utils.tekton_utils import get_config
     from sophia.utils.llm_integration import get_llm_integration
-
-    # Use fallback logging to avoid component_id formatting issues
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] [sophia] %(message)s"
-    )
-    logger = logging.getLogger("sophia.api")
 except ImportError:
-    # Fallback to standard logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger("sophia.api")
+    pass
+
+# Set up logging
+logger = setup_component_logging("sophia")
+
+# WebSocket connections (global for access in lifespan)
+active_connections: List[WebSocket] = []
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for Sophia"""
+    # Startup
+    logger.info("Starting Sophia API server...")
+    
+    # Get configuration
+    config = get_component_config()
+    port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
+    
+    try:
+        # Initialize core engines
+        metrics_engine = await get_metrics_engine()
+        await metrics_engine.start()
+        logger.info("Metrics engine started")
+        
+        analysis_engine = await get_analysis_engine()
+        await analysis_engine.start()
+        logger.info("Analysis engine started")
+        
+        experiment_framework = await get_experiment_framework()
+        await experiment_framework.start()
+        logger.info("Experiment framework started")
+        
+        recommendation_system = await get_recommendation_system()
+        await recommendation_system.start()
+        logger.info("Recommendation system started")
+        
+        intelligence_measurement = await get_intelligence_measurement()
+        await intelligence_measurement.start()
+        logger.info("Intelligence measurement started")
+        
+        ml_engine = await get_ml_engine()
+        await ml_engine.start()
+        logger.info("ML engine started")
+        
+        # Initialize LLM integration if available
+        try:
+            llm_integration = await get_llm_integration()
+            await llm_integration.initialize()
+            logger.info("LLM Integration initialized successfully")
+        except Exception as llm_error:
+            logger.warning(f"Failed to initialize LLM Integration: {llm_error}")
+        
+        # Register with Hermes
+        hermes_registration = HermesRegistration()
+        await hermes_registration.register_component(
+            component_name="sophia",
+            port=port,
+            version="0.1.0",
+            capabilities=["metrics", "analysis", "experiments", "recommendations", "intelligence", "ml"],
+            metadata={
+                "description": "Machine learning and continuous improvement",
+                "category": "analytics"
+            }
+        )
+        app.state.hermes_registration = hermes_registration
+        
+        # Start heartbeat task
+        if hermes_registration.is_registered:
+            heartbeat_task = asyncio.create_task(heartbeat_loop(hermes_registration, "sophia"))
+        
+        logger.info(f"Sophia API server started successfully on port {port}")
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise StartupError(f"Failed to start Sophia: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Sophia API server...")
+    
+    # Cancel heartbeat task if running
+    if hermes_registration.is_registered and 'heartbeat_task' in locals():
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+    
+    try:
+        # Stop core engines
+        metrics_engine = await get_metrics_engine()
+        await metrics_engine.stop()
+        
+        analysis_engine = await get_analysis_engine()
+        await analysis_engine.stop()
+        
+        experiment_framework = await get_experiment_framework()
+        await experiment_framework.stop()
+        
+        recommendation_system = await get_recommendation_system()
+        await recommendation_system.stop()
+        
+        intelligence_measurement = await get_intelligence_measurement()
+        await intelligence_measurement.stop()
+        
+        ml_engine = await get_ml_engine()
+        await ml_engine.stop()
+        
+        # Shutdown LLM integration if available
+        try:
+            llm_integration = await get_llm_integration()
+            await llm_integration.shutdown()
+            logger.info("LLM Integration shut down successfully")
+        except Exception as llm_error:
+            logger.warning(f"Error shutting down LLM Integration: {llm_error}")
+        
+        # Close any active WebSocket connections
+        for connection in active_connections:
+            try:
+                await connection.close()
+            except Exception:
+                pass
+        
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+    
+    # Deregister from Hermes
+    if hasattr(app.state, "hermes_registration") and app.state.hermes_registration:
+        await app.state.hermes_registration.deregister("sophia")
+    
+    # Give sockets time to close on macOS
+    await asyncio.sleep(0.5)
+    
+    logger.info("Sophia API server shutdown complete")
+
 
 # Create FastAPI app
 app = FastAPI(
     title="Sophia API",
     description="API for Sophia, the machine learning and continuous improvement component of Tekton",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # Enable CORS
@@ -81,9 +220,6 @@ except ImportError as e:
 
 # Create system router for system-level endpoints
 system_router = APIRouter(tags=["System"])
-
-# WebSocket connections
-active_connections: List[WebSocket] = []
 
 # ------------------------
 # Dependency Injections
@@ -198,8 +334,12 @@ async def notify_clients(data: Dict[str, Any]):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint following Tekton standards."""
     try:
+        # Get port from config
+        config = get_component_config()
+        port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
+        
         # Check core engines
         metrics_engine = await get_metrics_engine()
         analysis_engine = await get_analysis_engine()
@@ -221,7 +361,10 @@ async def health_check():
         if all_initialized:
             return {
                 "status": "healthy",
-                "message": "All systems operational",
+                "component": "sophia",
+                "version": "0.1.0",
+                "port": port,
+                "message": "Sophia is running normally",
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "components": {
                     "metrics_engine": metrics_engine.is_initialized,
@@ -269,114 +412,17 @@ if fastmcp_available:
     app.include_router(fastmcp_router, prefix="/mcp", tags=["MCP"])
     logger.info("FastMCP router included at /mcp")
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Initialize components on startup."""
-    try:
-        # Initialize core engines
-        metrics_engine = await get_metrics_engine()
-        await metrics_engine.start()
-        
-        analysis_engine = await get_analysis_engine()
-        await analysis_engine.start()
-        
-        experiment_framework = await get_experiment_framework()
-        await experiment_framework.start()
-        
-        recommendation_system = await get_recommendation_system()
-        await recommendation_system.start()
-        
-        intelligence_measurement = await get_intelligence_measurement()
-        await intelligence_measurement.start()
-        
-        ml_engine = await get_ml_engine()
-        await ml_engine.start()
-        
-        # Initialize LLM integration if available
-        try:
-            llm_integration = await get_llm_integration()
-            await llm_integration.initialize()
-            logger.info("LLM Integration initialized successfully")
-        except Exception as llm_error:
-            logger.warning(f"Failed to initialize LLM Integration: {llm_error}")
-        
-        # Register with Hermes if available
-        try:
-            import aiohttp
-            
-            port = int(os.environ.get("SOPHIA_PORT", 8014))
-            async with aiohttp.ClientSession() as session:
-                reg_data = {
-                    "name": "sophia",
-                    "version": "0.1.0",
-                    "type": "sophia",
-                    "endpoint": f"http://localhost:{port}",
-                    "capabilities": ["metrics", "analysis", "experiments", "recommendations", "intelligence", "ml"],
-                    "metadata": {"description": "Machine learning and continuous improvement"}
-                }
-                async with session.post("http://localhost:8001/api/register", json=reg_data) as resp:
-                    if resp.status == 200:
-                        logger.info("Successfully registered with Hermes")
-                    else:
-                        logger.warning(f"Failed to register with Hermes: HTTP {resp.status}")
-        except Exception as hermes_error:
-            logger.warning(f"Failed to register with Hermes: {hermes_error}")
-        
-        logger.info("Sophia API server started successfully")
-    except Exception as e:
-        logger.error(f"Error during startup: {e}")
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown."""
-    try:
-        # Stop core engines
-        metrics_engine = await get_metrics_engine()
-        await metrics_engine.stop()
-        
-        analysis_engine = await get_analysis_engine()
-        await analysis_engine.stop()
-        
-        experiment_framework = await get_experiment_framework()
-        await experiment_framework.stop()
-        
-        recommendation_system = await get_recommendation_system()
-        await recommendation_system.stop()
-        
-        intelligence_measurement = await get_intelligence_measurement()
-        await intelligence_measurement.stop()
-        
-        ml_engine = await get_ml_engine()
-        await ml_engine.stop()
-        
-        # Shutdown LLM integration if available
-        try:
-            llm_integration = await get_llm_integration()
-            await llm_integration.shutdown()
-            logger.info("LLM Integration shut down successfully")
-        except Exception as llm_error:
-            logger.warning(f"Error shutting down LLM Integration: {llm_error}")
-        
-        # Close any active WebSocket connections
-        for connection in active_connections:
-            try:
-                await connection.close()
-            except Exception:
-                pass
-        
-        logger.info("Sophia API server shutdown complete")
-    except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
-
 if __name__ == "__main__":
     import argparse
     import uvicorn
 
+    # Get port configuration
+    config = get_component_config()
+    default_port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
+
     parser = argparse.ArgumentParser(description="Sophia API Server")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("SOPHIA_PORT", 8014)),
-                       help="Port to run the server on")
+    parser.add_argument("--port", type=int, default=default_port,
+                       help=f"Port to run the server on (default: {default_port})")
     parser.add_argument("--host", type=str, default="0.0.0.0",
                        help="Host to bind the server to")
     args = parser.parse_args()
