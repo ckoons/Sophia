@@ -25,7 +25,6 @@ fi
 cd "$SCRIPT_DIR"
 
 # Set environment variables
-export SOPHIA_PORT=8014
 export PYTHONPATH="$SCRIPT_DIR:$TEKTON_ROOT:$PYTHONPATH"
 
 # Create log directories
