@@ -46,6 +46,9 @@ from sophia.models.intelligence import IntelligenceMeasurementCreate, Intelligen
 from sophia.models.component import ComponentRegister, ComponentUpdate, ComponentQuery, ComponentResponse
 from sophia.models.research import ResearchProjectCreate, ResearchProjectUpdate, ResearchProjectQuery, ResearchProjectResponse
 
+# Import Sophia version
+from sophia import __version__
+
 # Import Sophia utilities
 try:
     from sophia.utils.tekton_utils import get_config
@@ -362,7 +365,7 @@ async def health_check():
             return {
                 "status": "healthy",
                 "component": "sophia",
-                "version": "0.1.0",
+                "version": __version__,
                 "port": port,
                 "message": "Sophia is running normally",
                 "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -380,6 +383,9 @@ async def health_check():
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content={
                     "status": "degraded",
+                    "component": "sophia",
+                    "version": __version__,
+                    "port": port,
                     "message": "Some components are not initialized",
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "components": {
@@ -398,6 +404,8 @@ async def health_check():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "status": "error",
+                "component": "sophia",
+                "version": __version__,
                 "message": f"Health check failed: {str(e)}",
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             }
