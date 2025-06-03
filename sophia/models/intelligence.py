@@ -6,7 +6,8 @@ This module defines the Pydantic models for intelligence-related API requests an
 
 from typing import Dict, List, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
 class IntelligenceDimension(str, Enum):
@@ -37,7 +38,7 @@ class MeasurementMethod(str, Enum):
     SELF_ASSESSMENT = "self_assessment"
 
 
-class IntelligenceMeasurementCreate(BaseModel):
+class IntelligenceMeasurementCreate(TektonBaseModel):
     """Model for creating a new intelligence measurement."""
     
     component_id: str = Field(..., description="ID of the component being measured")
@@ -52,7 +53,7 @@ class IntelligenceMeasurementCreate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the measurement")
 
 
-class IntelligenceMeasurementQuery(BaseModel):
+class IntelligenceMeasurementQuery(TektonBaseModel):
     """Model for querying intelligence measurements."""
     
     component_id: Optional[str] = Field(None, description="Filter by component ID")
@@ -69,7 +70,7 @@ class IntelligenceMeasurementQuery(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
-class IntelligenceMeasurementResponse(BaseModel):
+class IntelligenceMeasurementResponse(TektonBaseModel):
     """Model for generic intelligence measurement operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -77,7 +78,7 @@ class IntelligenceMeasurementResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class ComponentIntelligenceProfile(BaseModel):
+class ComponentIntelligenceProfile(TektonBaseModel):
     """Model for a component's intelligence profile."""
     
     component_id: str = Field(..., description="ID of the component")
@@ -91,7 +92,7 @@ class ComponentIntelligenceProfile(BaseModel):
     historical_trend: Optional[Dict[str, Any]] = Field(None, description="Historical trend data")
 
 
-class IntelligenceComparison(BaseModel):
+class IntelligenceComparison(TektonBaseModel):
     """Model for comparing intelligence between components."""
     
     component_ids: List[str] = Field(..., description="List of component IDs to compare")

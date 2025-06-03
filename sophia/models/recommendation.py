@@ -6,7 +6,8 @@ This module defines the Pydantic models for recommendation-related API requests 
 
 from typing import Dict, List, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
 class RecommendationStatus(str, Enum):
@@ -44,7 +45,7 @@ class RecommendationType(str, Enum):
     CAPABILITY = "capability"
 
 
-class RecommendationCreate(BaseModel):
+class RecommendationCreate(TektonBaseModel):
     """Model for creating a new recommendation."""
     
     title: str = Field(..., description="Title of the recommendation")
@@ -60,7 +61,7 @@ class RecommendationCreate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the recommendation")
 
 
-class RecommendationUpdate(BaseModel):
+class RecommendationUpdate(TektonBaseModel):
     """Model for updating a recommendation."""
     
     title: Optional[str] = Field(None, description="Title of the recommendation")
@@ -73,7 +74,7 @@ class RecommendationUpdate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the recommendation")
 
 
-class RecommendationQuery(BaseModel):
+class RecommendationQuery(TektonBaseModel):
     """Model for querying recommendations."""
     
     status: Optional[RecommendationStatus] = Field(None, description="Filter by status")
@@ -88,7 +89,7 @@ class RecommendationQuery(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
-class RecommendationResponse(BaseModel):
+class RecommendationResponse(TektonBaseModel):
     """Model for generic recommendation operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -96,7 +97,7 @@ class RecommendationResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class RecommendationVerification(BaseModel):
+class RecommendationVerification(TektonBaseModel):
     """Model for verifying implementation of a recommendation."""
     
     recommendation_id: str = Field(..., description="ID of the recommendation")

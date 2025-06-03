@@ -7,7 +7,8 @@ This module defines the Pydantic models for experiment-related API requests and 
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
 class ExperimentStatus(str, Enum):
@@ -35,7 +36,7 @@ class ExperimentType(str, Enum):
     BASELINE_COMPARISON = "baseline_comparison"
 
 
-class ExperimentCreate(BaseModel):
+class ExperimentCreate(TektonBaseModel):
     """Model for creating a new experiment."""
     
     name: str = Field(..., description="Name of the experiment")
@@ -52,7 +53,7 @@ class ExperimentCreate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the experiment")
 
 
-class ExperimentUpdate(BaseModel):
+class ExperimentUpdate(TektonBaseModel):
     """Model for updating an experiment."""
     
     name: Optional[str] = Field(None, description="Name of the experiment")
@@ -64,7 +65,7 @@ class ExperimentUpdate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the experiment")
 
 
-class ExperimentQuery(BaseModel):
+class ExperimentQuery(TektonBaseModel):
     """Model for querying experiments."""
     
     status: Optional[ExperimentStatus] = Field(None, description="Filter by status")
@@ -77,7 +78,7 @@ class ExperimentQuery(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
-class ExperimentResponse(BaseModel):
+class ExperimentResponse(TektonBaseModel):
     """Model for generic experiment operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -85,7 +86,7 @@ class ExperimentResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class ExperimentResult(BaseModel):
+class ExperimentResult(TektonBaseModel):
     """Model for experiment results."""
     
     experiment_id: str = Field(..., description="ID of the experiment")

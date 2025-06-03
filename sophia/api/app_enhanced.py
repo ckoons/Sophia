@@ -11,7 +11,8 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 # Add Tekton root to path if not already present
 tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -49,23 +50,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_component_ports():
+    """Get component ports from environment variables"""
+    import os
+    return {
+        "engram": int(os.environ.get("ENGRAM_PORT", 8000)),
+        "hermes": int(os.environ.get("HERMES_PORT", 8001)),
+        "ergon": int(os.environ.get("ERGON_PORT", 8002)),
+        "rhetor": int(os.environ.get("RHETOR_PORT", 8003)),
+        "athena": int(os.environ.get("ATHENA_PORT", 8005)),
+        "prometheus": int(os.environ.get("PROMETHEUS_PORT", 8006)),
+        "harmonia": int(os.environ.get("HARMONIA_PORT", 8007)),
+        "telos": int(os.environ.get("TELOS_PORT", 8008)),
+        "synthesis": int(os.environ.get("SYNTHESIS_PORT", 8009)),
+        "metis": int(os.environ.get("METIS_PORT", 8011)),
+        "apollo": int(os.environ.get("APOLLO_PORT", 8012)),
+        "budget": int(os.environ.get("BUDGET_PORT", 8013)),
+        "sophia": int(os.environ.get("SOPHIA_PORT", 8014)),
+        "hephaestus": int(os.environ.get("HEPHAESTUS_PORT", 8080))
+    }
+
 # Component port mapping
-COMPONENT_PORTS = {
-    "engram": 8000,
-    "hermes": 8001,
-    "ergon": 8002,
-    "rhetor": 8003,
-    "athena": 8005,
-    "prometheus": 8006,
-    "harmonia": 8007,
-    "telos": 8008,
-    "synthesis": 8009,
-    "metis": 8011,
-    "apollo": 8012,
-    "budget": 8013,
-    "sophia": 8014,
-    "hephaestus": 8080
-}
+COMPONENT_PORTS = get_component_ports()
 
 # Intelligence dimensions and their weights
 INTELLIGENCE_DIMENSIONS = {
@@ -383,7 +389,7 @@ async def health():
     if create_health_response:
         return create_health_response(
             component_name="sophia",
-            port=8014,
+            port=int(os.environ.get("SOPHIA_PORT", 8014)),
             version="0.2.0",
             status="healthy",
             registered=is_registered_with_hermes,
@@ -404,7 +410,7 @@ async def health():
             "version": "0.2.0",
             "timestamp": datetime.now().isoformat(),
             "component": "sophia",
-            "port": 8014,
+            "port": int(os.environ.get("SOPHIA_PORT", 8014)),
             "registered_with_hermes": is_registered_with_hermes,
             "details": {
                 "services": {
@@ -607,7 +613,7 @@ async def startup_event():
     
     # Initialize graceful shutdown if available
     if GracefulShutdown:
-        shutdown_handler = GracefulShutdown("sophia", 8014)
+        shutdown_handler = GracefulShutdown("sophia", int(os.environ.get("SOPHIA_PORT", 8014)))
         shutdown_handler.add_handler(cancel_background_task)
         shutdown_handler.add_handler(save_health_data)
         shutdown_handler.add_handler(cleanup_session)
@@ -623,7 +629,7 @@ async def startup_event():
         hermes_registration = HermesRegistration()
         is_registered_with_hermes = await hermes_registration.register_component(
             component_name="sophia",
-            port=8014,
+            port=int(os.environ.get("SOPHIA_PORT", 8014)),
             version="0.2.0",
             capabilities=[
                 "intelligence_measurement",

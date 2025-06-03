@@ -6,10 +6,11 @@ This module defines the Pydantic models for metrics-related API requests and res
 
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
-class MetricSubmission(BaseModel):
+class MetricSubmission(TektonBaseModel):
     """Model for submitting a new metric."""
     
     metric_id: str = Field(..., description="Unique identifier for the metric type")
@@ -20,7 +21,7 @@ class MetricSubmission(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the metric")
 
 
-class MetricQuery(BaseModel):
+class MetricQuery(TektonBaseModel):
     """Model for querying metrics."""
     
     metric_id: Optional[str] = Field(None, description="Filter by metric ID")
@@ -33,7 +34,7 @@ class MetricQuery(BaseModel):
     sort: str = Field("timestamp:desc", description="Sorting specification (field:direction)")
 
 
-class MetricResponse(BaseModel):
+class MetricResponse(TektonBaseModel):
     """Model for generic metric operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -41,7 +42,7 @@ class MetricResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class MetricAggregationQuery(BaseModel):
+class MetricAggregationQuery(TektonBaseModel):
     """Model for metric aggregation queries."""
     
     metric_id: str = Field(..., description="The metric ID to aggregate")
@@ -53,7 +54,7 @@ class MetricAggregationQuery(BaseModel):
     end_time: Optional[str] = Field(None, description="Filter by end time")
 
 
-class MetricDefinition(BaseModel):
+class MetricDefinition(TektonBaseModel):
     """Model for metric definitions."""
     
     description: str = Field(..., description="Description of the metric")

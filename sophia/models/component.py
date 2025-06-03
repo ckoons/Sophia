@@ -6,7 +6,8 @@ This module defines the Pydantic models for component-related API requests and r
 
 from typing import Dict, List, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
 class ComponentType(str, Enum):
@@ -31,7 +32,7 @@ class PerformanceCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ComponentRegister(BaseModel):
+class ComponentRegister(TektonBaseModel):
     """Model for registering a component with Sophia."""
     
     component_id: str = Field(..., description="Unique identifier for the component")
@@ -47,7 +48,7 @@ class ComponentRegister(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the component")
 
 
-class ComponentUpdate(BaseModel):
+class ComponentUpdate(TektonBaseModel):
     """Model for updating a component's registration information."""
     
     name: Optional[str] = Field(None, description="Human-readable name of the component")
@@ -62,7 +63,7 @@ class ComponentUpdate(BaseModel):
     status: Optional[str] = Field(None, description="Current status of the component")
 
 
-class ComponentQuery(BaseModel):
+class ComponentQuery(TektonBaseModel):
     """Model for querying components."""
     
     component_type: Optional[ComponentType] = Field(None, description="Filter by component type")
@@ -75,7 +76,7 @@ class ComponentQuery(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
-class ComponentResponse(BaseModel):
+class ComponentResponse(TektonBaseModel):
     """Model for generic component operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -83,7 +84,7 @@ class ComponentResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class ComponentPerformanceAnalysis(BaseModel):
+class ComponentPerformanceAnalysis(TektonBaseModel):
     """Model for component performance analysis."""
     
     component_id: str = Field(..., description="ID of the component")
@@ -96,7 +97,7 @@ class ComponentPerformanceAnalysis(BaseModel):
     recommendations: Optional[List[Dict[str, Any]]] = Field(None, description="Recommendations for improvement")
 
 
-class ComponentInteractionAnalysis(BaseModel):
+class ComponentInteractionAnalysis(TektonBaseModel):
     """Model for analyzing interactions between components."""
     
     component_ids: List[str] = Field(..., description="IDs of the components in the interaction")

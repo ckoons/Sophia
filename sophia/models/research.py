@@ -6,7 +6,8 @@ This module defines the Pydantic models for AI research-related API requests and
 
 from typing import Dict, List, Any, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import Field
+from tekton.models.base import TektonBaseModel
 
 
 class ResearchApproach(str, Enum):
@@ -33,7 +34,7 @@ class ResearchStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-class ResearchProjectCreate(BaseModel):
+class ResearchProjectCreate(TektonBaseModel):
     """Model for creating a new research project."""
     
     title: str = Field(..., description="Title of the research project")
@@ -48,7 +49,7 @@ class ResearchProjectCreate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the project")
 
 
-class ResearchProjectUpdate(BaseModel):
+class ResearchProjectUpdate(TektonBaseModel):
     """Model for updating a research project."""
     
     title: Optional[str] = Field(None, description="Title of the research project")
@@ -62,7 +63,7 @@ class ResearchProjectUpdate(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Tags for categorizing the project")
 
 
-class ResearchProjectQuery(BaseModel):
+class ResearchProjectQuery(TektonBaseModel):
     """Model for querying research projects."""
     
     status: Optional[ResearchStatus] = Field(None, description="Filter by status")
@@ -75,7 +76,7 @@ class ResearchProjectQuery(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
-class ResearchProjectResponse(BaseModel):
+class ResearchProjectResponse(TektonBaseModel):
     """Model for generic research project operation response."""
     
     success: bool = Field(..., description="Whether the operation was successful")
@@ -83,7 +84,7 @@ class ResearchProjectResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
 
 
-class CSAConfigCreate(BaseModel):
+class CSAConfigCreate(TektonBaseModel):
     """Model for creating a Computational Spectral Analysis configuration."""
     
     network_id: str = Field(..., description="ID of the neural network to analyze")
@@ -95,7 +96,7 @@ class CSAConfigCreate(BaseModel):
     visualization_options: Optional[Dict[str, Any]] = Field(None, description="Options for result visualization")
 
 
-class CSAResult(BaseModel):
+class CSAResult(TektonBaseModel):
     """Model for Computational Spectral Analysis results."""
     
     analysis_id: str = Field(..., description="ID of the analysis")
@@ -108,7 +109,7 @@ class CSAResult(BaseModel):
     visualization_data: Optional[Dict[str, Any]] = Field(None, description="Data for visualizing the results")
 
 
-class CatastropheTheoryAnalysisCreate(BaseModel):
+class CatastropheTheoryAnalysisCreate(TektonBaseModel):
     """Model for creating a Catastrophe Theory analysis."""
     
     capability_dimension: str = Field(..., description="Capability dimension to analyze")
@@ -120,7 +121,7 @@ class CatastropheTheoryAnalysisCreate(BaseModel):
     analysis_methods: List[str] = Field(..., description="Methods to use for analyzing transitions")
 
 
-class CatastropheTheoryResult(BaseModel):
+class CatastropheTheoryResult(TektonBaseModel):
     """Model for Catastrophe Theory analysis results."""
     
     analysis_id: str = Field(..., description="ID of the analysis")
