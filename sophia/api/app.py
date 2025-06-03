@@ -421,19 +421,11 @@ if fastmcp_available:
     logger.info("FastMCP router included at /mcp")
 
 if __name__ == "__main__":
-    import argparse
-    import uvicorn
-
-    # Get port configuration
-    config = get_component_config()
-    default_port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
-
-    parser = argparse.ArgumentParser(description="Sophia API Server")
-    parser.add_argument("--port", type=int, default=default_port,
-                       help=f"Port to run the server on (default: {default_port})")
-    parser.add_argument("--host", type=str, default="0.0.0.0",
-                       help="Host to bind the server to")
-    args = parser.parse_args()
-
-    logger.info(f"Starting Sophia server on {args.host}:{args.port}")
-    uvicorn.run(app, host=args.host, port=args.port)
+    from shared.utils.socket_server import run_component_server
+    
+    run_component_server(
+        component_name="sophia",
+        app_module="sophia.api.app",
+        default_port=int(os.environ.get("SOPHIA_PORT")),
+        reload=False
+    )
