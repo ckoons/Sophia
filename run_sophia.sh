@@ -53,7 +53,7 @@ sleep 2
 
 # Start the Sophia service
 echo -e "${YELLOW}Starting Sophia API server...${RESET}"
-python -m sophia.api.app --port $SOPHIA_PORT > "$HOME/.tekton/logs/sophia.log" 2>&1 &
+python -m sophia > "$HOME/.tekton/logs/sophia.log" 2>&1 &
 SOPHIA_PID=$!
 
 # Trap signals for graceful shutdown
