@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import asyncio
+import time
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -29,6 +30,11 @@ from shared.utils.env_config import get_component_config
 from shared.utils.errors import StartupError
 from shared.utils.startup import component_startup, StartupMetrics
 from shared.utils.shutdown import GracefulShutdown
+
+# Import shared API utilities
+from shared.api.documentation import get_openapi_configuration
+from shared.api.endpoints import create_ready_endpoint, create_discovery_endpoint, EndpointInfo
+from shared.api.routers import create_standard_routers, mount_standard_routers
 
 # Import Sophia core modules
 from sophia.core.metrics_engine import get_metrics_engine
@@ -58,6 +64,14 @@ except ImportError:
 
 # Set up logging
 logger = setup_component_logging("sophia")
+
+# Component configuration
+COMPONENT_NAME = "sophia"
+COMPONENT_VERSION = "0.1.0"
+COMPONENT_DESCRIPTION = "Machine learning and continuous improvement system for Tekton ecosystem"
+
+# Global start time for readiness checks
+start_time = time.time()
 
 # WebSocket connections (global for access in lifespan)
 active_connections: List[WebSocket] = []
@@ -110,12 +124,12 @@ async def lifespan(app: FastAPI):
         # Register with Hermes
         hermes_registration = HermesRegistration()
         await hermes_registration.register_component(
-            component_name="sophia",
+            component_name=COMPONENT_NAME,
             port=port,
-            version="0.1.0",
+            version=COMPONENT_VERSION,
             capabilities=["metrics", "analysis", "experiments", "recommendations", "intelligence", "ml"],
             metadata={
-                "description": "Machine learning and continuous improvement",
+                "description": COMPONENT_DESCRIPTION,
                 "category": "analytics"
             }
         )
@@ -192,11 +206,13 @@ async def lifespan(app: FastAPI):
     logger.info("Sophia API server shutdown complete")
 
 
-# Create FastAPI app
+# Create FastAPI app with OpenAPI configuration
 app = FastAPI(
-    title="Sophia API",
-    description="API for Sophia, the machine learning and continuous improvement component of Tekton",
-    version="0.1.0",
+    **get_openapi_configuration(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION
+    ),
     lifespan=lifespan
 )
 
@@ -208,6 +224,79 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create standard routers
+routers = create_standard_routers(COMPONENT_NAME)
+
+# Add infrastructure endpoints
+@routers.root.get("/ready")
+async def ready():
+    """Readiness check endpoint."""
+    # Check if all engines are initialized
+    try:
+        metrics_engine = await get_metrics_engine()
+        analysis_engine = await get_analysis_engine()
+        experiment_framework = await get_experiment_framework()
+        recommendation_system = await get_recommendation_system()
+        intelligence_measurement = await get_intelligence_measurement()
+        ml_engine = await get_ml_engine()
+        
+        all_initialized = (
+            metrics_engine.is_initialized and
+            analysis_engine.is_initialized and
+            experiment_framework.is_initialized and
+            recommendation_system.is_initialized and
+            intelligence_measurement.is_initialized and
+            ml_engine.is_initialized
+        )
+    except:
+        all_initialized = False
+    
+    ready_check = create_ready_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        start_time=start_time,
+        readiness_check=lambda: all_initialized
+    )
+    return await ready_check()
+
+
+@routers.root.get("/discovery")
+async def discovery():
+    """Service discovery endpoint."""
+    discovery_check = create_discovery_endpoint(
+        component_name=COMPONENT_NAME,
+        component_version=COMPONENT_VERSION,
+        component_description=COMPONENT_DESCRIPTION,
+        endpoints=[
+            EndpointInfo(path="/health", method="GET", description="Health check"),
+            EndpointInfo(path="/ready", method="GET", description="Readiness check"),
+            EndpointInfo(path="/discovery", method="GET", description="Service discovery"),
+            EndpointInfo(path="/api/v1/metrics", method="*", description="Metrics management"),
+            EndpointInfo(path="/api/v1/analysis", method="*", description="Analysis operations"),
+            EndpointInfo(path="/api/v1/experiments", method="*", description="Experiment management"),
+            EndpointInfo(path="/api/v1/recommendations", method="*", description="Recommendation system"),
+            EndpointInfo(path="/api/v1/intelligence", method="*", description="Intelligence measurement"),
+            EndpointInfo(path="/api/v1/ml", method="*", description="Machine learning operations"),
+            EndpointInfo(path="/api/v1/components", method="*", description="Component management"),
+            EndpointInfo(path="/api/v1/research", method="*", description="Research projects"),
+            EndpointInfo(path="/api/v1/mcp", method="*", description="MCP endpoints"),
+            EndpointInfo(path="/ws", method="WS", description="WebSocket for real-time updates")
+        ],
+        capabilities=[
+            "metrics",
+            "analysis",
+            "experiments",
+            "recommendations",
+            "intelligence",
+            "ml"
+        ],
+        metadata={
+            "category": "analytics",
+            "intelligence_dimensions": [dim.value for dim in IntelligenceDimension]
+        }
+    )
+    return await discovery_check()
 
 # Import API endpoint routers
 from sophia.api.endpoints import api_router
@@ -411,14 +500,17 @@ async def health_check():
             }
         )
 
-# Include routers
-app.include_router(api_router, prefix="/api")
+# Mount standard routers
+mount_standard_routers(app, routers)
+
+# Include business logic routers under v1
+routers.v1.include_router(api_router)
 app.include_router(system_router)
 
 # Include FastMCP endpoints if available
 if fastmcp_available:
-    app.include_router(fastmcp_router, prefix="/mcp", tags=["MCP"])
-    logger.info("FastMCP router included at /mcp")
+    routers.v1.include_router(fastmcp_router, prefix="/mcp", tags=["MCP"])
+    logger.info("FastMCP router included at /api/v1/mcp")
 
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
