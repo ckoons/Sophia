@@ -6,6 +6,7 @@ allowing Sophia's tools to be discoverable and executable through Hermes.
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 from shared.mcp import MCPService, MCPConfig
 from shared.mcp.client import HermesMCPClient
@@ -87,25 +88,15 @@ class SophiaMCPBridge(MCPService):
         
         # Create handler that delegates to FastMCP
         async def handler(parameters: Dict[str, Any]) -> Dict[str, Any]:
-            # Import here to avoid circular imports
-            from sophia.core.mcp.fastmcp_endpoints import process_request_func
-            from tekton.mcp.fastmcp.schema import MCPRequest
-            
-            # Create an MCP request for the FastMCP handler
-            request = MCPRequest(
-                client_id="hermes",
-                tool=fastmcp_tool['name'],
-                parameters=parameters
-            )
-            
-            # Process through FastMCP
-            response = await process_request_func(self.ml_engine, request)
-            
-            # Extract result from response
-            if response.status == "success":
-                return response.result
+            # Since Sophia uses MCPTool objects with handlers,
+            # we can call the handler directly
+            handler = fastmcp_tool.get('handler')
+            if handler:
+                # Call the handler with parameters
+                result = await handler(**parameters) if asyncio.iscoroutinefunction(handler) else handler(**parameters)
+                return result
             else:
-                raise Exception(response.error or "Unknown error")
+                raise Exception("No handler found for tool")
                 
         # Register with Hermes
         if self.hermes_client:
