@@ -139,6 +139,16 @@ async def lifespan(app: FastAPI):
         if hermes_registration.is_registered:
             heartbeat_task = asyncio.create_task(heartbeat_loop(hermes_registration, "sophia"))
         
+        # Initialize Hermes MCP Bridge
+        try:
+            from sophia.core.mcp.hermes_bridge import SophiaMCPBridge
+            mcp_bridge = SophiaMCPBridge(ml_engine)
+            await mcp_bridge.initialize()
+            app.state.mcp_bridge = mcp_bridge
+            logger.info("Initialized Hermes MCP Bridge for FastMCP tools")
+        except Exception as e:
+            logger.warning(f"Failed to initialize MCP Bridge: {e}")
+        
         logger.info(f"Sophia API server started successfully on port {port}")
         
     except Exception as e:
@@ -192,6 +202,14 @@ async def lifespan(app: FastAPI):
                 await connection.close()
             except Exception:
                 pass
+        
+        # Cleanup MCP bridge
+        if hasattr(app.state, "mcp_bridge") and app.state.mcp_bridge:
+            try:
+                await app.state.mcp_bridge.shutdown()
+                logger.info("MCP bridge cleaned up")
+            except Exception as e:
+                logger.warning(f"Error cleaning up MCP bridge: {e}")
         
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
