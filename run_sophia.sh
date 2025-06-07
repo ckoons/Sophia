@@ -29,7 +29,8 @@ source "$TEKTON_ROOT/shared/utils/setup_env.sh"
 setup_tekton_env "$SCRIPT_DIR" "$TEKTON_ROOT"
 
 # Create log directories
-mkdir -p "$TEKTON_ROOT/.tekton/logs"
+LOG_DIR="${TEKTON_LOG_DIR:-$TEKTON_ROOT/.tekton/logs}"
+mkdir -p "$LOG_DIR"
 mkdir -p "$TEKTON_ROOT/.tekton/data/sophia"
 
 # Error handling function
@@ -54,7 +55,7 @@ sleep 2
 
 # Start the Sophia service
 echo -e "${YELLOW}Starting Sophia API server...${RESET}"
-python -m sophia > "$TEKTON_ROOT/.tekton/logs/sophia.log" 2>&1 &
+python -m sophia > "$LOG_DIR/sophia.log" 2>&1 &
 SOPHIA_PID=$!
 
 # Trap signals for graceful shutdown
@@ -72,7 +73,7 @@ for i in {1..30}; do
     # Check if the process is still running
     if ! kill -0 $SOPHIA_PID 2>/dev/null; then
         echo -e "${RED}Sophia process terminated unexpectedly${RESET}"
-        cat "$TEKTON_ROOT/.tekton/logs/sophia.log"
+        cat "$LOG_DIR/sophia.log"
         handle_error "Sophia failed to start"
     fi
     
