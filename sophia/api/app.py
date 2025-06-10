@@ -85,7 +85,10 @@ async def lifespan(app: FastAPI):
     
     # Get configuration
     config = get_component_config()
-    port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
+    try:
+        port = config.sophia.port
+    except (AttributeError, TypeError):
+        port = int(os.environ.get("SOPHIA_PORT"))
     
     try:
         # Initialize core engines
@@ -448,7 +451,10 @@ async def health_check():
     try:
         # Get port from config
         config = get_component_config()
-        port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT", 8014))
+        try:
+            port = config.sophia.port
+        except (AttributeError, TypeError):
+            port = int(os.environ.get("SOPHIA_PORT"))
         
         # Check core engines
         metrics_engine = await get_metrics_engine()
@@ -533,9 +539,15 @@ if fastmcp_available:
 if __name__ == "__main__":
     from shared.utils.socket_server import run_component_server
     
+    config = get_component_config()
+    try:
+        port = config.sophia.port
+    except (AttributeError, TypeError):
+        port = int(os.environ.get("SOPHIA_PORT"))
+    
     run_component_server(
         component_name="sophia",
         app_module="sophia.api.app",
-        default_port=int(os.environ.get("SOPHIA_PORT")),
+        default_port=port,
         reload=False
     )

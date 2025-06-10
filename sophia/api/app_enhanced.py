@@ -28,11 +28,13 @@ try:
     from shared.utils.graceful_shutdown import GracefulShutdown, add_fastapi_shutdown
     from shared.utils.health_check import create_health_response
     from shared.utils.hermes_registration import HermesRegistration, heartbeat_loop
+    from shared.utils.env_config import get_component_config
 except ImportError as e:
     logger.warning(f"Could not import shared utils: {e}")
     GracefulShutdown = None
     create_health_response = None
     HermesRegistration = None
+    get_component_config = None
 
 # Create FastAPI app
 app = FastAPI(
@@ -51,24 +53,44 @@ app.add_middleware(
 )
 
 def get_component_ports():
-    """Get component ports from environment variables"""
+    """Get component ports from configuration"""
     import os
-    return {
-        "engram": int(os.environ.get("ENGRAM_PORT", 8000)),
-        "hermes": int(os.environ.get("HERMES_PORT", 8001)),
-        "ergon": int(os.environ.get("ERGON_PORT", 8002)),
-        "rhetor": int(os.environ.get("RHETOR_PORT", 8003)),
-        "athena": int(os.environ.get("ATHENA_PORT", 8005)),
-        "prometheus": int(os.environ.get("PROMETHEUS_PORT", 8006)),
-        "harmonia": int(os.environ.get("HARMONIA_PORT", 8007)),
-        "telos": int(os.environ.get("TELOS_PORT", 8008)),
-        "synthesis": int(os.environ.get("SYNTHESIS_PORT", 8009)),
-        "metis": int(os.environ.get("METIS_PORT", 8011)),
-        "apollo": int(os.environ.get("APOLLO_PORT", 8012)),
-        "budget": int(os.environ.get("BUDGET_PORT", 8013)),
-        "sophia": int(os.environ.get("SOPHIA_PORT", 8014)),
-        "hephaestus": int(os.environ.get("HEPHAESTUS_PORT", 8080))
+    config = get_component_config()
+    
+    # Map of component names to config attributes
+    components = {
+        "engram": "engram",
+        "hermes": "hermes",
+        "ergon": "ergon",
+        "rhetor": "rhetor",
+        "athena": "athena",
+        "prometheus": "prometheus",
+        "harmonia": "harmonia",
+        "telos": "telos",
+        "synthesis": "synthesis",
+        "metis": "metis",
+        "apollo": "apollo",
+        "budget": "budget",
+        "sophia": "sophia",
+        "hephaestus": "hephaestus"
     }
+    
+    ports = {}
+    for name, config_attr in components.items():
+        if hasattr(config, config_attr):
+            component_config = getattr(config, config_attr)
+            if hasattr(component_config, 'port'):
+                ports[name] = component_config.port
+            else:
+                # Fallback to environment variable
+                env_var = f"{name.upper()}_PORT"
+                ports[name] = int(os.environ.get(env_var))
+        else:
+            # Fallback to environment variable
+            env_var = f"{name.upper()}_PORT"
+            ports[name] = int(os.environ.get(env_var))
+    
+    return ports
 
 # Component port mapping
 COMPONENT_PORTS = get_component_ports()
@@ -382,6 +404,14 @@ async def root():
         ]
     }
 
+def _get_sophia_port() -> int:
+    """Get Sophia port from configuration."""
+    config = get_component_config()
+    try:
+        return config.sophia.port
+    except (AttributeError, TypeError):
+        return int(os.environ.get("SOPHIA_PORT"))
+
 @app.get("/health")
 async def health():
     """Health check endpoint"""
@@ -389,7 +419,7 @@ async def health():
     if create_health_response:
         return create_health_response(
             component_name="sophia",
-            port=int(os.environ.get("SOPHIA_PORT", 8014)),
+            port=_get_sophia_port(),
             version="0.2.0",
             status="healthy",
             registered=is_registered_with_hermes,
@@ -410,7 +440,7 @@ async def health():
             "version": "0.2.0",
             "timestamp": datetime.now().isoformat(),
             "component": "sophia",
-            "port": int(os.environ.get("SOPHIA_PORT", 8014)),
+            "port": _get_sophia_port(),
             "registered_with_hermes": is_registered_with_hermes,
             "details": {
                 "services": {
@@ -613,7 +643,9 @@ async def startup_event():
     
     # Initialize graceful shutdown if available
     if GracefulShutdown:
-        shutdown_handler = GracefulShutdown("sophia", int(os.environ.get("SOPHIA_PORT", 8014)))
+        config = get_component_config() if get_component_config else None
+        port = config.sophia.port if config and hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT"))
+        shutdown_handler = GracefulShutdown("sophia", port)
         shutdown_handler.add_handler(cancel_background_task)
         shutdown_handler.add_handler(save_health_data)
         shutdown_handler.add_handler(cleanup_session)
@@ -627,9 +659,11 @@ async def startup_event():
     # Register with Hermes if available
     if HermesRegistration:
         hermes_registration = HermesRegistration()
+        config = get_component_config() if get_component_config else None
+        port = config.sophia.port if config and hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT"))
         is_registered_with_hermes = await hermes_registration.register_component(
             component_name="sophia",
-            port=int(os.environ.get("SOPHIA_PORT", 8014)),
+            port=port,
             version="0.2.0",
             capabilities=[
                 "intelligence_measurement",
@@ -663,6 +697,7 @@ async def periodic_health_update():
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("SOPHIA_PORT", 8014))
+    config = get_component_config() if get_component_config else None
+    port = config.sophia.port if config and hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT"))
     logger.info(f"Starting enhanced Sophia on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)

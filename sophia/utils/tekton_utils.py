@@ -8,12 +8,20 @@ context management, and CLI functionalities.
 """
 
 import os
+import sys
 import importlib
 import logging
 import asyncio
 import inspect
 import functools
 from typing import Dict, Any, Optional, Union, List, Callable, Awaitable, TypeVar, cast
+
+# Add Tekton root to path for shared imports
+tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if tekton_root not in sys.path:
+    sys.path.append(tekton_root)
+
+from shared.utils.env_config import get_component_config
 
 # Type variables for function signatures
 T = TypeVar('T')
@@ -130,7 +138,11 @@ def get_sophia_port() -> int:
     Returns:
         Port number
     """
-    return int(get_config("SOPHIA_PORT", 8006))
+    config = get_component_config()
+    try:
+        return config.sophia.port
+    except (AttributeError, TypeError):
+        return int(os.environ.get("SOPHIA_PORT"))
     
 def get_sophia_base_url() -> str:
     """

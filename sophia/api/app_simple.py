@@ -58,6 +58,15 @@ except ImportError:
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("SOPHIA_PORT", 8014))
+    
+    # Add Tekton root to path for shared imports
+    tekton_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+    if tekton_root not in sys.path:
+        sys.path.append(tekton_root)
+    
+    from shared.utils.env_config import get_component_config
+    
+    config = get_component_config()
+    port = config.sophia.port if hasattr(config, 'sophia') else int(os.environ.get("SOPHIA_PORT"))
     logger.info(f"Starting Sophia on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
